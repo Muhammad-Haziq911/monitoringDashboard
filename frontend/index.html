@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home Lab Dashboard</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+    <div class="bg-glow"></div>
+    <div class="bg-glow bg-glow-secondary"></div>
+    
+    <header class="app-header">
+        <div class="logo">
+            <i class="fa-solid fa-server logo-icon"></i>
+            <h1>HomeLab<span>Dashboard</span></h1>
+        </div>
+        <div class="sys-summary">
+            <div class="summary-item">
+                <span class="label">Total Nodes</span>
+                <span class="value" id="total-nodes">0</span>
+            </div>
+            <div class="summary-item">
+                <span class="label">Active Nodes</span>
+                <span class="value text-success" id="active-nodes">0</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="dashboard-grid" id="dashboard-grid">
+        <!-- Devices will be dynamically rendered here -->
+        <div class="no-devices" id="no-devices">
+            <i class="fa-solid fa-satellite-dish pulse-icon"></i>
+            <p>Waiting for clients to push metrics...</p>
+            <p class="subtext">Make sure the agent script is running on your monitored machines.</p>
+        </div>
+    </main>
+
+    <footer class="app-footer">
+        <p>Dashboard running on PC Engines APU &bull; Real-time updates active</p>
+    </footer>
+
+    <!-- App Logic -->
+    <script src="app.js"></script>
+</body>
+</html>

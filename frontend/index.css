@@ -1,0 +1,664 @@
+:root {
+    --bg-color: #0b0f19;
+    --card-bg: rgba(20, 28, 47, 0.55);
+    --card-bg-hover: rgba(26, 36, 60, 0.7);
+    --card-border: rgba(255, 255, 255, 0.07);
+    --card-border-hover: rgba(0, 242, 254, 0.3);
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    
+    --primary-glow: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+    --accent-teal: #00f2fe;
+    --accent-blue: #3b82f6;
+    --accent-purple: #a855f7;
+    --accent-pink: #f43f5e;
+    
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --offline: #64748b;
+    
+    --font-main: 'Outfit', sans-serif;
+    --transition-speed: 0.3s;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    font-family: var(--font-main);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+    position: relative;
+}
+
+/* Background glowing blobs */
+.bg-glow {
+    position: absolute;
+    width: 600px;
+    height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0, 242, 254, 0.08) 0%, rgba(79, 172, 254, 0) 70%);
+    top: -200px;
+    left: -200px;
+    z-index: -1;
+    pointer-events: none;
+    filter: blur(80px);
+}
+
+.bg-glow-secondary {
+    background: radial-gradient(circle, rgba(168, 85, 247, 0.06) 0%, rgba(168, 85, 247, 0) 70%);
+    top: auto;
+    bottom: -200px;
+    right: -200px;
+    left: auto;
+}
+
+/* Header */
+.app-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 2rem 4rem;
+    max-width: 1600px;
+    width: 100%;
+    margin: 0 auto;
+    z-index: 10;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.logo-icon {
+    font-size: 1.8rem;
+    background: var(--primary-glow);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 2px 10px rgba(0, 242, 254, 0.3));
+}
+
+.logo h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+.logo h1 span {
+    font-weight: 300;
+    color: var(--text-secondary);
+}
+
+.sys-summary {
+    display: flex;
+    gap: 2rem;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding: 0.75rem 1.5rem;
+    border-radius: 16px;
+}
+
+.summary-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.summary-item .label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.summary-item .value {
+    font-size: 1.4rem;
+    font-weight: 600;
+}
+
+.text-success {
+    color: var(--success);
+}
+
+/* Main Dashboard Grid */
+.dashboard-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    gap: 2rem;
+    padding: 0 4rem 4rem 4rem;
+    max-width: 1600px;
+    width: 100%;
+    margin: 0 auto;
+    align-content: start;
+}
+
+/* Empty State / Loading State */
+.no-devices {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 6rem 2rem;
+    background: var(--card-bg);
+    border: 1px dashed var(--card-border);
+    border-radius: 24px;
+    text-align: center;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    margin-top: 2rem;
+}
+
+.pulse-icon {
+    font-size: 3rem;
+    color: var(--text-muted);
+    margin-bottom: 1.5rem;
+    animation: pulse 2s infinite ease-in-out;
+}
+
+.no-devices p {
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+}
+
+.no-devices .subtext {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+/* Device Card styling */
+.device-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 24px;
+    padding: 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    transition: all var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.3);
+}
+
+.device-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: var(--offline);
+    transition: background var(--transition-speed);
+}
+
+.device-card.online::before {
+    background: var(--primary-glow);
+}
+
+.device-card:hover {
+    transform: translateY(-5px);
+    background: var(--card-bg-hover);
+    border-color: var(--card-border-hover);
+    box-shadow: 0 15px 35px -5px rgba(0, 242, 254, 0.05), 0 10px 30px -10px rgba(0, 0, 0, 0.4);
+}
+
+/* Device Card Header */
+.device-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.device-title-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.device-icon-box {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+    transition: all var(--transition-speed);
+}
+
+.device-card.online .device-icon-box {
+    background: rgba(0, 242, 254, 0.1);
+    color: var(--accent-teal);
+}
+
+.device-info h3 {
+    font-size: 1.15rem;
+    font-weight: 600;
+}
+
+.device-info .ip-addr {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.status-badge {
+    padding: 0.35rem 0.75rem;
+    border-radius: 30px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-muted);
+}
+
+.device-card.online .status-badge {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--success);
+}
+
+.status-badge .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--offline);
+}
+
+.device-card.online .status-badge .dot {
+    background: var(--success);
+    box-shadow: 0 0 8px var(--success);
+}
+
+/* Metadata Subtitle (OS/CPU Details) */
+.device-meta-subtitle {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 0.75rem;
+    margin-top: -0.75rem;
+    line-height: 1.4;
+}
+
+.device-meta-subtitle .meta-line {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.2rem;
+}
+
+.device-meta-subtitle .os-details {
+    color: var(--text-secondary);
+}
+
+/* Device Stats Section */
+.device-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+}
+
+.stat-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.stat-label-container {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+}
+
+.stat-label {
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.stat-value {
+    font-weight: 600;
+}
+
+.progress-bar-bg {
+    height: 6px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    border-radius: 10px;
+    background: var(--accent-blue);
+    width: 0%;
+    transition: width 0.5s ease-out;
+}
+
+.stat-row.cpu .progress-bar-fill { background: var(--accent-teal); }
+.stat-row.ram .progress-bar-fill { background: var(--accent-purple); }
+.stat-row.disk-item .progress-bar-fill { background: var(--accent-blue); }
+
+/* Multi Disk List */
+.disks-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 12px;
+    padding: 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.02);
+}
+
+/* Extra Stats Grid (Temp, Uptime, Bandwidth) */
+.stat-meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-top: 0.25rem;
+}
+
+.meta-box {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    padding: 0.6rem 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.meta-box i {
+    color: var(--text-muted);
+}
+
+.meta-box.warning i { color: var(--warning); }
+.meta-box.danger i { color: var(--danger); }
+.meta-box.success i { color: var(--success); }
+
+.meta-box-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.meta-box-text .lbl {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+.meta-box-text .val {
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+/* Network Speed Display Box */
+.net-speed-container {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: space-around;
+    padding: 0.5rem;
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.02);
+    font-size: 0.8rem;
+}
+
+.net-speed-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-secondary);
+}
+
+.net-speed-item i {
+    font-size: 0.85rem;
+}
+
+.net-speed-item.down i { color: var(--accent-teal); }
+.net-speed-item.up i { color: var(--accent-purple); }
+
+.net-speed-item .val {
+    font-weight: 650;
+    color: var(--text-primary);
+}
+
+/* GPU Section Widget */
+.gpu-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 1rem;
+}
+
+.gpu-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.gpu-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.gpu-title i {
+    color: var(--accent-pink);
+}
+
+.gpu-model-name {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-weight: 550;
+}
+
+.gpu-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.gpu-progress-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.stat-row.gpu-util .progress-bar-fill { background: var(--accent-pink); }
+.stat-row.gpu-vram .progress-bar-fill { background: var(--accent-purple); }
+
+/* VPN Badges Section */
+.vpn-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 1rem;
+}
+
+.section-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.vpn-badge-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.vpn-badge {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    padding: 0.4rem 0.8rem;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-muted);
+    transition: all var(--transition-speed);
+}
+
+.vpn-badge.active {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.3);
+    color: #93c5fd;
+}
+
+.vpn-badge.active.tailscale {
+    background: rgba(168, 85, 247, 0.1);
+    border-color: rgba(168, 85, 247, 0.3);
+    color: #d8b4fe;
+}
+
+.vpn-badge.active i {
+    color: inherit;
+}
+
+/* Docker Containers Widget */
+.docker-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 1rem;
+}
+
+.docker-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    max-height: 120px;
+    overflow-y: auto;
+    padding-right: 0.2rem;
+}
+
+/* Custom scrollbar for docker list */
+.docker-list::-webkit-scrollbar {
+    width: 4px;
+}
+.docker-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+.docker-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+}
+.docker-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.docker-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.02);
+    padding: 0.4rem 0.6rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    border: 1px solid rgba(255, 255, 255, 0.01);
+}
+
+.docker-item-left {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 500;
+}
+
+.docker-item-left i {
+    color: var(--text-muted);
+}
+
+.docker-item.running .docker-item-left i {
+    color: var(--accent-teal);
+}
+
+.docker-status {
+    font-size: 0.7rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.docker-item.running .docker-status {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--success);
+}
+
+.docker-item.stopped .docker-status {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger);
+}
+
+/* Footer */
+.app-footer {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    margin-top: auto;
+    border-top: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+/* Keyframes */
+@keyframes pulse {
+    0% { transform: scale(1); opacity: 0.6; }
+    50% { transform: scale(1.08); opacity: 1; }
+    100% { transform: scale(1); opacity: 0.6; }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .app-header {
+        flex-direction: column;
+        gap: 1.5rem;
+        padding: 1.5rem;
+        text-align: center;
+    }
+    
+    .sys-summary {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .dashboard-grid {
+        grid-template-columns: 1fr;
+        padding: 0 1.5rem 1.5rem 1.5rem;
+    }
+}
