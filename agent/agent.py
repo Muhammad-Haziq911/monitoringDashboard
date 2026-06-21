@@ -9,7 +9,7 @@ import urllib.error
 import psutil
 
 # Configuration
-SERVER_URL = "http://localhost:8000/api/report"  # Adjust to your dashboard server IP in production
+SERVER_URL = "http://192.168.1.106:8000/api/report"  # Adjust to your dashboard server IP in production
 INTERVAL = 5  # Reporting interval in seconds
 
 class AgentState:

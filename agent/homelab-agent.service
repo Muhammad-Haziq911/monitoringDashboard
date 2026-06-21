@@ -1,0 +1,16 @@
+[Unit]
+Description=HomeLab Dashboard Agent Service
+After=network.target
+
+[Service]
+Type=simple
+# Change this to the user you want to run the service under (e.g. pi, ubuntu, or root)
+User=root
+# Adjust these paths to point to your actual agent installation directory
+WorkingDirectory=/path/to/homelab-dashboard/agent
+ExecStart=/path/to/homelab-dashboard/agent/.venv/bin/python agent.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

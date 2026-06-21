@@ -142,6 +142,31 @@ Deploy this lightweight agent on every machine you want to monitor:
 
 Once started, the agent will instantly register and begin streaming metrics to your dashboard!
 
+#### Running as a systemd Service (Linux)
+
+To run the agent in the background as a systemd service on your Linux client machines:
+
+1. **Edit the service file**:
+   Open `agent/homelab-agent.service` and update the `User`, `WorkingDirectory`, and `ExecStart` paths to match your agent directory:
+   ```ini
+   WorkingDirectory=/path/to/homelab-dashboard/agent
+   ExecStart=/path/to/homelab-dashboard/agent/.venv/bin/python agent.py
+   ```
+2. **Copy to systemd directory**:
+   ```bash
+   sudo cp homelab-agent.service /etc/systemd/system/
+   ```
+3. **Enable and start the service**:
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl enable homelab-agent.service
+   sudo systemctl start homelab-agent.service
+   ```
+4. **Check status**:
+   ```bash
+   sudo systemctl status homelab-agent.service
+   ```
+
 ---
 
 ## 🛠️ Customization
