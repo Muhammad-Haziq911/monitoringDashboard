@@ -49,8 +49,16 @@
     <div class="power-trend-section">
         <div class="power-trend-card">
             <div class="power-trend-header">
-                <h3><i class="fa-solid fa-chart-line"></i> Lab Power Trend</h3>
-                <span class="power-trend-subtitle">Last 6 Hours</span>
+                <div class="trend-title-group">
+                    <h3><i class="fa-solid fa-chart-line"></i> Lab Power Trend</h3>
+                    <span class="power-trend-subtitle" id="power-trend-subtitle">Last 6 Hours</span>
+                </div>
+                <div class="range-selector">
+                    <button class="range-btn active" data-range="6h">6H</button>
+                    <button class="range-btn" data-range="24h">24H</button>
+                    <button class="range-btn" data-range="7d">7D</button>
+                    <button class="range-btn" data-range="30d">30D</button>
+                </div>
             </div>
             <div class="power-trend-body">
                 <canvas id="power-trend-canvas"></canvas>

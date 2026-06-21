@@ -39,6 +39,9 @@ const TEMP_ALERT_THRESHOLD = 80.0;    // °C
 const GPU_UTIL_ALERT_THRESHOLD = 85.0; // %
 const GPU_TEMP_ALERT_THRESHOLD = 80.0; // °C
 
+// Global range state
+let activePowerRange = '6h';
+
 // Fetch initial power history from server
 async function initPowerHistory() {
     try {
@@ -49,6 +52,53 @@ async function initPowerHistory() {
         }
     } catch (e) {
         console.error("Failed to load power history:", e);
+    }
+}
+
+// Switch the power history range and fetch new data from the backend database
+async function switchPowerRange(range) {
+    activePowerRange = range;
+    
+    // Update active button classes
+    document.querySelectorAll('.range-btn').forEach(btn => {
+        if (btn.getAttribute('data-range') === range) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+
+    // Update the subtitle text
+    const subtitleEl = document.getElementById('power-trend-subtitle');
+    if (subtitleEl) {
+        if (range === '6h') subtitleEl.textContent = 'Last 6 Hours';
+        else if (range === '24h') subtitleEl.textContent = 'Last 24 Hours';
+        else if (range === '7d') subtitleEl.textContent = 'Last 7 Days';
+        else if (range === '30d') subtitleEl.textContent = 'Last 30 Days';
+    }
+
+    try {
+        const response = await fetch(`${window.location.origin}/api/power-history?range=${range}`);
+        if (response.ok) {
+            powerHistory = await response.json();
+            drawPowerTrendChart();
+        }
+    } catch (e) {
+        console.error(`Failed to load power history for range ${range}:`, e);
+    }
+}
+
+// Format the timestamp according to the selected timeline range
+function formatTimeLabel(timestamp, range) {
+    if (!timestamp) return '';
+    const d = new Date(timestamp * 1000);
+    if (range === '6h' || range === '24h') {
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    } else if (range === '7d') {
+        const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        return `${days[d.getDay()]} ${d.getDate()}`;
+    } else {
+        return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
     }
 }
 
@@ -85,9 +135,8 @@ function drawPowerTrendChart() {
     // Add 10% vertical head room
     maxVal = maxVal * 1.1;
     
-    const maxPoints = 360; // 6 hours (60s intervals)
-    const xStep = w / (maxPoints - 1);
-    const offset = maxPoints - powerHistory.length;
+    const totalPoints = powerHistory.length;
+    const xStep = w / (totalPoints - 1 || 1);
     
     // Draw horizontal dashed grid lines
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
@@ -100,13 +149,15 @@ function drawPowerTrendChart() {
     
     const gridLines = 3;
     for (let i = 1; i <= gridLines; i++) {
-        const y = h - (i / (gridLines + 1)) * h;
+        // Fit grid lines within the upper 12px -> h-20px zone
+        const y = 12 + (i / (gridLines + 1)) * (h - 32);
         ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(w, y);
         ctx.stroke();
         
-        const wattVal = Math.round((i / (gridLines + 1)) * maxVal);
+        const pct = (gridLines + 1 - i) / (gridLines + 1);
+        const wattVal = Math.round(pct * maxVal);
         ctx.fillText(`${wattVal}W`, 6, y - 6);
     }
     ctx.setLineDash([]); // Reset
@@ -123,9 +174,9 @@ function drawPowerTrendChart() {
     ctx.shadowBlur = 6;
     
     powerHistory.forEach((pt, idx) => {
-        const x = (idx + offset) * xStep;
-        // Map power to canvas coordinates (leaving 8px padding top and bottom)
-        const y = h - (pt.power / maxVal * (h - 16)) - 8;
+        const x = idx * xStep;
+        // Leave 20px padding at bottom for labels and 12px at top
+        const y = h - (pt.power / maxVal * (h - 32)) - 20;
         if (idx === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
     });
@@ -133,20 +184,51 @@ function drawPowerTrendChart() {
     
     // Draw area gradient under the curve
     ctx.shadowBlur = 0; // Disable shadow glow for fill
-    ctx.lineTo((powerHistory.length - 1 + offset) * xStep, h);
-    ctx.lineTo(offset * xStep, h);
+    ctx.lineTo((totalPoints - 1) * xStep, h - 20);
+    ctx.lineTo(0, h - 20);
     ctx.closePath();
     
-    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    const grad = ctx.createLinearGradient(0, 0, 0, h - 20);
     grad.addColorStop(0, 'rgba(251, 191, 36, 0.12)');
     grad.addColorStop(1, 'rgba(251, 191, 36, 0)');
     ctx.fillStyle = grad;
     ctx.fill();
+
+    // Draw X-axis labels at the bottom of the canvas
+    ctx.font = '9px Outfit';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.textBaseline = 'top';
+    
+    // Position 4 labels evenly across the timeline
+    const labelIndexes = [0, Math.floor(totalPoints * 0.33), Math.floor(totalPoints * 0.66), totalPoints - 1];
+    labelIndexes.forEach(idx => {
+        if (idx >= 0 && idx < totalPoints) {
+            const pt = powerHistory[idx];
+            const x = idx * xStep;
+            const y = h - 12;
+            const labelText = formatTimeLabel(pt.time, activePowerRange);
+            
+            if (idx === 0) ctx.textAlign = 'left';
+            else if (idx === totalPoints - 1) ctx.textAlign = 'right';
+            else ctx.textAlign = 'center';
+            
+            ctx.fillText(labelText, x, y);
+        }
+    });
 }
 
 // Connect to Server-Sent Events stream
 function connectSSE() {
     initPowerHistory();
+    
+    // Wire up range selector buttons
+    document.querySelectorAll('.range-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const range = e.target.getAttribute('data-range');
+            switchPowerRange(range);
+        });
+    });
+    
     const streamUrl = `${window.location.origin}/api/stream`;
     console.log(`Connecting to SSE stream at: ${streamUrl}`);
     
@@ -487,22 +569,24 @@ function updateSummary() {
         totalCostEl.textContent = `$${(sumPower * 0.2088).toFixed(2)}/mo`;
     }
     
-    // Update real-time power history
-    if (powerHistory.length === 0) {
-        powerHistory.push({ time: now, power: sumPower });
-    } else {
-        const lastPoint = powerHistory[powerHistory.length - 1];
-        if (now - lastPoint.time >= 60) {
+    // Update real-time power history (Only for 6h view)
+    if (activePowerRange === '6h') {
+        if (powerHistory.length === 0) {
             powerHistory.push({ time: now, power: sumPower });
-            if (powerHistory.length > 360) {
-                powerHistory.shift();
-            }
         } else {
-            // Update last point with live value
-            lastPoint.power = sumPower;
+            const lastPoint = powerHistory[powerHistory.length - 1];
+            if (now - lastPoint.time >= 60) {
+                powerHistory.push({ time: now, power: sumPower });
+                if (powerHistory.length > 360) {
+                    powerHistory.shift();
+                }
+            } else {
+                // Update last point with live value
+                lastPoint.power = sumPower;
+            }
         }
+        drawPowerTrendChart();
     }
-    drawPowerTrendChart();
 }
 
 // Render the entire dashboard grid

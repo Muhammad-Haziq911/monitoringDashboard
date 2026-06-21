@@ -3,6 +3,7 @@ import json
 import os
 import platform
 import re
+import sqlite3
 import time
 import urllib.error
 import urllib.request
@@ -11,6 +12,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
+
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "history.db")
 
 app = FastAPI(title="Home Lab Dashboard API")
 
@@ -33,6 +36,39 @@ MAX_POWER_HISTORY = 360  # 6 hours of 1-minute intervals
 
 # Services monitoring list
 services_list: List[dict] = []
+
+def init_db():
+    """Create the SQLite history table and indexes if not exists."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS power_log (
+                timestamp REAL,
+                power REAL
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_power_log_timestamp ON power_log(timestamp)")
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Error initializing database: {e}")
+
+def load_power_history_from_db():
+    """Load the last 6 hours of power history from SQLite on startup."""
+    global power_history
+    if not os.path.exists(DB_PATH):
+        return
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        six_hours_ago = time.time() - 21600
+        cursor.execute("SELECT timestamp, power FROM power_log WHERE timestamp >= ? ORDER BY timestamp ASC", (six_hours_ago,))
+        rows = cursor.fetchall()
+        power_history = [{"time": r[0], "power": r[1]} for r in rows]
+        conn.close()
+    except Exception as e:
+        print(f"Error loading power history: {e}")
 
 def load_services_config():
     """Load services to monitor from services.json."""
@@ -188,6 +224,23 @@ async def record_power_history_loop():
             
             if len(power_history) > MAX_POWER_HISTORY:
                 power_history.pop(0)
+                
+            # Persistent DB insert & prune (Non-blocking background thread)
+            def db_write():
+                try:
+                    conn = sqlite3.connect(DB_PATH)
+                    cursor = conn.cursor()
+                    cursor.execute("INSERT INTO power_log (timestamp, power) VALUES (?, ?)", (current_time, total_power))
+                    
+                    # Delete values older than 30 days (30 * 24 * 3600 seconds)
+                    limit_time = current_time - (30 * 24 * 3600)
+                    cursor.execute("DELETE FROM power_log WHERE timestamp < ?", (limit_time,))
+                    conn.commit()
+                    conn.close()
+                except Exception as db_err:
+                    print(f"Error writing power to db: {db_err}")
+            
+            await asyncio.to_thread(db_write)
         except Exception as e:
             print(f"Error in power history loop: {e}")
         await asyncio.sleep(60.0)
@@ -208,6 +261,8 @@ async def check_services_loop():
 
 @app.on_event("startup")
 async def startup_event():
+    init_db()
+    load_power_history_from_db()
     load_services_config()
     # Start the non-blocking background ping sweep
     asyncio.create_task(ping_background_loop())
@@ -245,8 +300,51 @@ async def get_devices():
     }
 
 @app.get("/api/power-history")
-async def get_power_history():
-    return power_history
+async def get_power_history(range: str = "6h"):
+    current_time = time.time()
+    
+    # 6h range defaults to the in-memory array for speed
+    if range == "6h":
+        return power_history
+        
+    def fetch_data():
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            
+            # Select grouping interval and start timestamp based on range
+            # 24h: group by 5-minute buckets (300 seconds)
+            # 7d: group by 30-minute buckets (1800 seconds)
+            # 30d: group by 2-hour buckets (7200 seconds)
+            if range == "24h":
+                start_time = current_time - 86400
+                interval = 300
+            elif range == "7d":
+                start_time = current_time - 604800
+                interval = 1800
+            elif range == "30d":
+                start_time = current_time - 2592000
+                interval = 7200
+            else:
+                start_time = current_time - 21600
+                interval = 60
+                
+            cursor.execute("""
+                SELECT CAST(timestamp / ? AS INTEGER) * ? as grp, AVG(power)
+                FROM power_log
+                WHERE timestamp >= ?
+                GROUP BY grp
+                ORDER BY grp ASC
+            """, (interval, interval, start_time))
+            rows = cursor.fetchall()
+            conn.close()
+            
+            return [{"time": r[0], "power": round(r[1], 1) if r[1] is not None else 0.0} for r in rows]
+        except Exception as query_err:
+            print(f"Error querying power history database: {query_err}")
+            return []
+
+    return await asyncio.to_thread(fetch_data)
 
 @app.get("/api/services")
 async def get_services_endpoint():
