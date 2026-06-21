@@ -88,7 +88,30 @@ On your main dashboard server (running Linux/Ubuntu/Debian or Windows):
    ```
 4. **Access the Web UI**: Open your browser and navigate to `http://<YOUR-SERVER-IP>:8000`.
 
-*Tip: You can set up Uvicorn as a systemd service (Linux) or run it as a background service to ensure the dashboard starts automatically at boot.*
+#### Running as a systemd Service (Linux)
+
+To ensure the dashboard server starts automatically at boot, you can use the provided systemd service file:
+
+1. **Edit the service file**: 
+   Open `backend/homelab-dashboard.service` and update the `User`, `WorkingDirectory`, and `ExecStart` paths to match your installation:
+   ```ini
+   WorkingDirectory=/path/to/homelab-dashboard/backend
+   ExecStart=/path/to/homelab-dashboard/backend/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+   ```
+2. **Copy to systemd directory**:
+   ```bash
+   sudo cp homelab-dashboard.service /etc/systemd/system/
+   ```
+3. **Enable and start the service**:
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl enable homelab-dashboard.service
+   sudo systemctl start homelab-dashboard.service
+   ```
+4. **Check status**:
+   ```bash
+   sudo systemctl status homelab-dashboard.service
+   ```
 
 ---
 

@@ -1,0 +1,16 @@
+[Unit]
+Description=HomeLab Dashboard Service
+After=network.target
+
+[Service]
+Type=simple
+# Change this to the user you want to run the service under (e.g. pi, ubuntu, or root)
+User=root
+# Adjust these paths to point to your actual installation directory
+WorkingDirectory=/path/to/homelab-dashboard/backend
+ExecStart=/path/to/homelab-dashboard/backend/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
