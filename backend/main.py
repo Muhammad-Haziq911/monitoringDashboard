@@ -25,6 +25,10 @@ app.add_middleware(
 # Key: hostname, Value: device metrics dict
 devices: Dict[str, dict] = {}
 
+# In-memory store for historical power draw (Last 6 hours)
+power_history: List[dict] = []
+MAX_POWER_HISTORY = 360  # 6 hours of 1-minute intervals
+
 # Active SSE listener queues
 listeners: List[asyncio.Queue] = []
 
@@ -99,10 +103,43 @@ async def ping_background_loop():
         # Sleep for 10 seconds before next ping sweep
         await asyncio.sleep(10.0)
 
+async def record_power_history_loop():
+    """Background task to periodically record the total power draw of the lab."""
+    while True:
+        try:
+            current_time = time.time()
+            total_power = 0.0
+            for device in list(devices.values()):
+                is_active = (current_time - device.get("last_seen", 0)) < OFFLINE_THRESHOLD
+                if is_active:
+                    cpu_p = device.get("cpu_power")
+                    gpu_info = device.get("gpu")
+                    gpu_p = gpu_info.get("power") if gpu_info else None
+                    
+                    device_power = 0.0
+                    if isinstance(cpu_p, (int, float)):
+                        device_power += cpu_p
+                    if isinstance(gpu_p, (int, float)):
+                        device_power += gpu_p
+                    total_power += device_power
+            
+            power_history.append({
+                "time": current_time,
+                "power": total_power
+            })
+            
+            if len(power_history) > MAX_POWER_HISTORY:
+                power_history.pop(0)
+        except Exception as e:
+            print(f"Error in power history loop: {e}")
+        await asyncio.sleep(60.0)
+
 @app.on_event("startup")
 async def startup_event():
     # Start the non-blocking background ping sweep
     asyncio.create_task(ping_background_loop())
+    # Start the power history loop
+    asyncio.create_task(record_power_history_loop())
 
 @app.post("/api/report")
 async def report_metrics(data: dict):
@@ -131,6 +168,10 @@ async def get_devices():
         name: get_device_status(info, current_time)
         for name, info in devices.items()
     }
+
+@app.get("/api/power-history")
+async def get_power_history():
+    return power_history
 
 @app.get("/api/stream")
 async def message_stream(request: Request):

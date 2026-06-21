@@ -1,5 +1,6 @@
 // Local state of devices
 const devices = {};
+let powerHistory = []; // Historical lab power points: [{ time, power }]
 
 // SSE Connection
 let eventSource = null;
@@ -38,8 +39,114 @@ const TEMP_ALERT_THRESHOLD = 80.0;    // °C
 const GPU_UTIL_ALERT_THRESHOLD = 85.0; // %
 const GPU_TEMP_ALERT_THRESHOLD = 80.0; // °C
 
+// Fetch initial power history from server
+async function initPowerHistory() {
+    try {
+        const response = await fetch(`${window.location.origin}/api/power-history`);
+        if (response.ok) {
+            powerHistory = await response.json();
+            drawPowerTrendChart();
+        }
+    } catch (e) {
+        console.error("Failed to load power history:", e);
+    }
+}
+
+// Draw the glowing lab power trend line
+function drawPowerTrendChart() {
+    const canvas = document.getElementById('power-trend-canvas');
+    if (!canvas) return;
+    
+    // Resize canvas to match container width/height
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+    
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    
+    if (!powerHistory || powerHistory.length < 2) {
+        // Draw centered loading/placeholder text
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+        ctx.font = '12px Outfit';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('Accumulating telemetry...', w / 2, h / 2);
+        return;
+    }
+    
+    // Find min and max values for scaling
+    let maxVal = 50; // default min-max to avoid weird scale if all off
+    powerHistory.forEach(pt => {
+        if (pt.power > maxVal) maxVal = pt.power;
+    });
+    
+    // Add 10% vertical head room
+    maxVal = maxVal * 1.1;
+    
+    const maxPoints = 360; // 6 hours (60s intervals)
+    const xStep = w / (maxPoints - 1);
+    const offset = maxPoints - powerHistory.length;
+    
+    // Draw horizontal dashed grid lines
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.font = '9px Outfit';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    
+    const gridLines = 3;
+    for (let i = 1; i <= gridLines; i++) {
+        const y = h - (i / (gridLines + 1)) * h;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+        
+        const wattVal = Math.round((i / (gridLines + 1)) * maxVal);
+        ctx.fillText(`${wattVal}W`, 6, y - 6);
+    }
+    ctx.setLineDash([]); // Reset
+    
+    // Draw the glowing trend line
+    ctx.beginPath();
+    ctx.strokeStyle = '#fbbf24'; // Amber yellow
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    
+    // Glow effect
+    ctx.shadowColor = '#fbbf24';
+    ctx.shadowBlur = 6;
+    
+    powerHistory.forEach((pt, idx) => {
+        const x = (idx + offset) * xStep;
+        // Map power to canvas coordinates (leaving 8px padding top and bottom)
+        const y = h - (pt.power / maxVal * (h - 16)) - 8;
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    
+    // Draw area gradient under the curve
+    ctx.shadowBlur = 0; // Disable shadow glow for fill
+    ctx.lineTo((powerHistory.length - 1 + offset) * xStep, h);
+    ctx.lineTo(offset * xStep, h);
+    ctx.closePath();
+    
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, 'rgba(251, 191, 36, 0.12)');
+    grad.addColorStop(1, 'rgba(251, 191, 36, 0)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+}
+
 // Connect to Server-Sent Events stream
 function connectSSE() {
+    initPowerHistory();
     const streamUrl = `${window.location.origin}/api/stream`;
     console.log(`Connecting to SSE stream at: ${streamUrl}`);
     
@@ -371,6 +478,23 @@ function updateSummary() {
     if (totalPowerContainer) {
         totalPowerContainer.title = `Estimated monthly cost: $${(sumPower * 0.2088).toFixed(2)} at $0.29/kWh`;
     }
+    
+    // Update real-time power history
+    if (powerHistory.length === 0) {
+        powerHistory.push({ time: now, power: sumPower });
+    } else {
+        const lastPoint = powerHistory[powerHistory.length - 1];
+        if (now - lastPoint.time >= 60) {
+            powerHistory.push({ time: now, power: sumPower });
+            if (powerHistory.length > 360) {
+                powerHistory.shift();
+            }
+        } else {
+            // Update last point with live value
+            lastPoint.power = sumPower;
+        }
+    }
+    drawPowerTrendChart();
 }
 
 // Render the entire dashboard grid
@@ -860,4 +984,7 @@ window.addEventListener('click', () => {
     if (audioCtx && audioCtx.state === 'suspended') {
         audioCtx.resume();
     }
+});
+window.addEventListener('resize', () => {
+    drawPowerTrendChart();
 });
