@@ -406,8 +406,8 @@ body {
 /* Extra Stats Grid (Temp, Uptime, Bandwidth) */
 .stat-meta-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 0.75rem;
     margin-top: 0.25rem;
 }
 

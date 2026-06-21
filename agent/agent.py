@@ -20,6 +20,8 @@ class AgentState:
         self.last_disk_read = None
         self.last_disk_write = None
         self.last_disk_time = None
+        self.last_rapl_energy = None
+        self.last_rapl_time = None
 
 state = AgentState()
 
@@ -102,8 +104,9 @@ def get_temperature():
 def get_gpu_status():
     """Query NVIDIA GPU usage and stats using nvidia-smi if available."""
     try:
+        # Added power.draw to the nvidia-smi query
         result = subprocess.run(
-            ["nvidia-smi", "--query-gpu=name,utilization.gpu,utilization.memory,memory.total,memory.used,temperature.gpu", "--format=csv,noheader,nounits"],
+            ["nvidia-smi", "--query-gpu=name,utilization.gpu,utilization.memory,memory.total,memory.used,temperature.gpu,power.draw", "--format=csv,noheader,nounits"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -111,17 +114,62 @@ def get_gpu_status():
         )
         if result.returncode == 0 and result.stdout.strip():
             parts = result.stdout.strip().split(", ")
-            if len(parts) == 6:
+            if len(parts) == 7:
                 return {
                     "name": parts[0],
                     "utilization": float(parts[1]),
                     "mem_utilization": float(parts[2]),
                     "mem_total": float(parts[3]) * 1024 * 1024,  # Convert MB to Bytes
                     "mem_used": float(parts[4]) * 1024 * 1024,
-                    "temp": float(parts[5])
+                    "temp": float(parts[5]),
+                    "power": float(parts[6])  # Power draw in Watts
                 }
     except Exception:
         pass
+    return None
+
+def get_cpu_power():
+    """Retrieve the real-time CPU package power draw in Watts."""
+    sys_name = platform.system()
+    if sys_name == "Windows":
+        try:
+            # Query the CPU RAPL package power counter in milliwatts
+            cmd = ['powershell', '-Command', '(Get-Counter -Counter \'\\Energy Meter(*_pkg)\\Power\' -ErrorAction SilentlyContinue).CounterSamples.CookedValue']
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=2)
+            if res.returncode == 0 and res.stdout.strip():
+                # Value is in milliwatts, return as Watts
+                return float(res.stdout.strip().split('\n')[0]) / 1000.0
+        except Exception:
+            pass
+    elif sys_name == "Linux":
+        # Query Linux RAPL package 0 energy counter (Intel/AMD)
+        try:
+            path = "/sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj"
+            if os.path.exists(path):
+                with open(path, "r") as f:
+                    energy = float(f.read().strip())
+                now = time.time()
+                
+                if state.last_rapl_energy is None:
+                    state.last_rapl_energy = energy
+                    state.last_rapl_time = now
+                    return None
+                    
+                dt = now - state.last_rapl_time
+                power = 0.0
+                if dt > 0:
+                    # energy difference (microjoules) / time difference (seconds) = microwatts
+                    # Divide by 1e6 to convert microwatts to Watts
+                    power = (energy - state.last_rapl_energy) / (dt * 1000000.0)
+                    
+                state.last_rapl_energy = energy
+                state.last_rapl_time = now
+                
+                # Sanity limit check (0 to 500W)
+                if 0.0 <= power <= 500.0:
+                    return power
+        except Exception:
+            pass
     return None
 
 def get_disk_status():
@@ -295,8 +343,9 @@ def gather_metrics():
     # Uptime
     uptime = time.time() - psutil.boot_time()
     
-    # Temp
+    # Temp and power
     temp = get_temperature()
+    cpu_power = get_cpu_power()
     
     # GPU (RTX / Nvidia)
     gpu = get_gpu_status()
@@ -323,6 +372,7 @@ def gather_metrics():
         "network": network,
         "uptime": uptime,
         "temp": temp,
+        "cpu_power": cpu_power,
         "gpu": gpu,
         "vpns": vpns,
         "docker_containers": docker_containers

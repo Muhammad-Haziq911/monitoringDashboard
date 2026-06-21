@@ -349,10 +349,28 @@ function updateSummary() {
     const total = allDevices.length;
     
     const now = Date.now() / 1000;
-    const active = allDevices.filter(d => (now - d.last_seen) < 15).length;
+    const activeDevices = allDevices.filter(d => (now - d.last_seen) < 15);
+    const active = activeDevices.length;
     
     totalNodesEl.textContent = total;
     activeNodesEl.textContent = active;
+    
+    // Sum active device powers (CPU + GPU draw)
+    let sumPower = 0;
+    activeDevices.forEach(d => {
+        const cpuP = d.cpu_power || 0;
+        const gpuP = (d.gpu && d.gpu.power) ? d.gpu.power : 0;
+        sumPower += (cpuP + gpuP);
+    });
+    
+    const totalPowerEl = document.getElementById('total-power');
+    const totalPowerContainer = document.getElementById('total-power-container');
+    if (totalPowerEl) {
+        totalPowerEl.textContent = `${sumPower.toFixed(0)}W`;
+    }
+    if (totalPowerContainer) {
+        totalPowerContainer.title = `Estimated monthly cost: $${(sumPower * 0.108).toFixed(2)} at $0.15/kWh`;
+    }
 }
 
 // Render the entire dashboard grid
@@ -638,6 +656,24 @@ function renderDeviceCard(device) {
         cpuCoresText = ` &bull; ${device.cpu_cores.physical}P/${device.cpu_cores.logical}L Cores`;
     }
     
+    // Build Power Draw metadata
+    let powerHtml = '';
+    const cpuPower = device.cpu_power || 0;
+    const gpuPower = (device.gpu && device.gpu.power) ? device.gpu.power : 0;
+    const totalPower = cpuPower + gpuPower;
+    
+    if (totalPower > 0) {
+        powerHtml = `
+            <div class="meta-box success" title="Estimated monthly cost: $${(totalPower * 0.108).toFixed(2)} at $0.15/kWh">
+                <i class="fa-solid fa-bolt" style="color: #fbbf24; text-shadow: 0 0 8px rgba(251, 191, 36, 0.4);"></i>
+                <div class="meta-box-text">
+                    <span class="lbl">Power Draw</span>
+                    <span class="val">${totalPower.toFixed(0)}W</span>
+                </div>
+            </div>
+        `;
+    }
+
     // Network speeds box
     let netHtml = '';
     if (device.network) {
@@ -735,7 +771,7 @@ function renderDeviceCard(device) {
             <!-- Multi disks storage list -->
             ${disksHtml}
 
-            <!-- Extra stats (Temp, uptime) -->
+            <!-- Extra stats (Temp, uptime, power) -->
             <div class="stat-meta-grid">
                 ${tempHtml}
                 <div class="meta-box">
@@ -745,6 +781,7 @@ function renderDeviceCard(device) {
                         <span class="val">${device.uptime ? formatUptime(device.uptime) : '--'}</span>
                     </div>
                 </div>
+                ${powerHtml}
                 
                 <!-- Live network speeds -->
                 ${netHtml}
