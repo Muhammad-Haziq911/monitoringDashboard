@@ -92,7 +92,7 @@ On your main dashboard server (running Linux/Ubuntu/Debian or Windows):
    ```
 3. **Run the server**:
    ```bash
-   uvicorn main:app --host 0.0.0.0 --port 8000
+   uvicorn main:app --host 0.0.0.0 --port 8000 --timeout-graceful-shutdown 1
    ```
 4. **Access the Web UI**: Open your browser and navigate to `http://<YOUR-SERVER-IP>:8000`.
 
@@ -104,7 +104,7 @@ To ensure the dashboard server starts automatically at boot, you can use the pro
    Open `backend/homelab-dashboard.service` and update the `User`, `WorkingDirectory`, and `ExecStart` paths to match your installation:
    ```ini
    WorkingDirectory=/path/to/homelab-dashboard/backend
-   ExecStart=/path/to/homelab-dashboard/backend/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
+   ExecStart=/path/to/homelab-dashboard/backend/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --timeout-graceful-shutdown 1
    ```
 2. **Copy to systemd directory**:
    ```bash
