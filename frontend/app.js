@@ -369,7 +369,7 @@ function updateSummary() {
         totalPowerEl.textContent = `${sumPower.toFixed(0)}W`;
     }
     if (totalPowerContainer) {
-        totalPowerContainer.title = `Estimated monthly cost: $${(sumPower * 0.108).toFixed(2)} at $0.15/kWh`;
+        totalPowerContainer.title = `Estimated monthly cost: $${(sumPower * 0.2088).toFixed(2)} at $0.29/kWh`;
     }
 }
 
@@ -664,7 +664,7 @@ function renderDeviceCard(device) {
     
     if (totalPower > 0) {
         powerHtml = `
-            <div class="meta-box success" title="Estimated monthly cost: $${(totalPower * 0.108).toFixed(2)} at $0.15/kWh">
+            <div class="meta-box success" title="Estimated monthly cost: $${(totalPower * 0.2088).toFixed(2)} at $0.29/kWh">
                 <i class="fa-solid fa-bolt" style="color: #fbbf24; text-shadow: 0 0 8px rgba(251, 191, 36, 0.4);"></i>
                 <div class="meta-box-text">
                     <span class="lbl">Power Draw</span>

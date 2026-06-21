@@ -12,6 +12,9 @@ import psutil
 SERVER_URL = "http://192.168.1.106:8000/api/report"  # Adjust to your dashboard server IP in production
 INTERVAL = 5  # Reporting interval in seconds
 
+# Prevent console window popping up/stealing focus when spawning subprocesses on Windows
+creationflags = 0x08000000 if os.name == 'nt' else 0
+
 class AgentState:
     def __init__(self):
         self.last_net_bytes_sent = None
@@ -110,7 +113,8 @@ def get_gpu_status():
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            timeout=3
+            timeout=3,
+            creationflags=creationflags
         )
         if result.returncode == 0 and result.stdout.strip():
             parts = result.stdout.strip().split(", ")
@@ -135,7 +139,7 @@ def get_cpu_power():
         try:
             # Query the CPU RAPL package power counter in milliwatts
             cmd = ['powershell', '-Command', '(Get-Counter -Counter \'\\Energy Meter(*_pkg)\\Power\' -ErrorAction SilentlyContinue).CounterSamples.CookedValue']
-            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=2)
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=2, creationflags=creationflags)
             if res.returncode == 0 and res.stdout.strip():
                 # Value is in milliwatts, return as Watts
                 return float(res.stdout.strip().split('\n')[0]) / 1000.0
@@ -295,7 +299,8 @@ def get_docker_containers():
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            timeout=3
+            timeout=3,
+            creationflags=creationflags
         )
         if result.returncode == 0 and result.stdout.strip():
             lines = result.stdout.strip().split("\n")

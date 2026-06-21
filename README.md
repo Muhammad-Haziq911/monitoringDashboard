@@ -175,7 +175,10 @@ To run the agent in the background as a systemd service on your Linux client mac
 
 #### Running silently in the background on Startup (Windows)
 
-To ensure the agent runs silently in the background on your Windows gaming machine (without opening an annoying terminal window at startup):
+To ensure the agent runs silently in the background on your Windows gaming machine (without opening an annoying terminal window or stealing window focus during gaming/daily tasks):
+
+> [!IMPORTANT]
+> **Do not configure the task to repeat in Task Scheduler!** The agent has a built-in loop that queries metrics every 5 seconds. The task should only run **once** when you log on and remain running in the background.
 
 1. Open **Task Scheduler** from the Start Menu.
 2. Click **Create Basic Task...** and name it `HomeLab Agent`.
@@ -194,6 +197,9 @@ To ensure the agent runs silently in the background on your Windows gaming machi
    C:\path\to\homelab-dashboard\agent
    ```
 8. Click **Next** and **Finish**.
+
+> [!NOTE]
+> The agent code is built to run child commands (like CPU power queries via PowerShell or GPU queries via `nvidia-smi`) with the `CREATE_NO_WINDOW` flag (`0x08000000`). This ensures these queries run completely silently in the background and will never steal window focus from games or other applications.
 
 ---
 
