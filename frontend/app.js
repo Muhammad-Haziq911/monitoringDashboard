@@ -4,6 +4,23 @@ const devices = {};
 // SSE Connection
 let eventSource = null;
 
+// Pinned / Favorites devices (persisted in localStorage)
+let pinnedDevices = JSON.parse(localStorage.getItem('pinnedDevices') || '[]');
+
+function togglePin(hostname) {
+    if (pinnedDevices.includes(hostname)) {
+        pinnedDevices = pinnedDevices.filter(name => name !== hostname);
+    } else {
+        pinnedDevices.push(hostname);
+    }
+    localStorage.setItem('pinnedDevices', JSON.stringify(pinnedDevices));
+    
+    // Re-sort and re-render dashboard cards
+    renderDashboard();
+}
+// Expose togglePin globally so HTML onclick can call it
+window.togglePin = togglePin;
+
 // Audio Context for alerts
 let audioCtx = null;
 let lastAlertPlayTime = 0;
@@ -307,9 +324,33 @@ function renderDashboard() {
         return;
     }
     
+    // Sort: Pinned first, then alphabetically by hostname
+    allDevices.sort((a, b) => {
+        const aPinned = pinnedDevices.includes(a.hostname);
+        const bPinned = pinnedDevices.includes(b.hostname);
+        if (aPinned && !bPinned) return -1;
+        if (!aPinned && bPinned) return 1;
+        return a.hostname.localeCompare(b.hostname);
+    });
+    
     noDevicesEl.style.display = 'none';
     allDevices.forEach(device => {
         renderDeviceCard(device);
+        
+        // Append child moves it to the end of parent in sorted order
+        const cardId = `device-${device.hostname.replace(/[^a-zA-Z0-9]/g, '-')}`;
+        const card = document.getElementById(cardId);
+        if (card) {
+            dashboardGrid.appendChild(card);
+        }
+    });
+    
+    // Remove stale nodes
+    const activeCardIds = new Set(allDevices.map(d => `device-${d.hostname.replace(/[^a-zA-Z0-9]/g, '-')}`));
+    dashboardGrid.querySelectorAll('.device-card').forEach(card => {
+        if (!activeCardIds.has(card.id)) {
+            card.remove();
+        }
     });
     
     updateSummary();
@@ -329,8 +370,8 @@ function renderDeviceCard(device) {
     
     const now = Date.now() / 1000;
     const isOnline = (now - device.last_seen) < 15;
-    
-    card.className = `device-card ${isOnline ? 'online' : 'offline'}`;
+    const isPinned = pinnedDevices.includes(device.hostname);
+    card.className = `device-card ${isOnline ? 'online' : 'offline'} ${isPinned ? 'pinned' : ''}`;
     
     // CPU Temp rendering
     let tempHtml = '';
@@ -569,9 +610,14 @@ function renderDeviceCard(device) {
                     <span class="ip-addr">${device.ip || 'Unknown IP'}</span>
                 </div>
             </div>
-            <div class="status-badge">
-                <span class="dot"></span>
-                <span>${isOnline ? 'Online' : 'Offline'}</span>
+            <div class="header-right-controls">
+                <div class="status-badge">
+                    <span class="dot"></span>
+                    <span>${isOnline ? 'Online' : 'Offline'}</span>
+                </div>
+                <button class="pin-btn" onclick="togglePin('${device.hostname.replace(/'/g, "\\'")}')" title="Pin to top">
+                    <i class="${isPinned ? 'fa-solid' : 'fa-regular'} fa-star"></i>
+                </button>
             </div>
         </div>
 
