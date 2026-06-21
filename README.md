@@ -10,12 +10,18 @@ A premium, lightweight, real-time home lab monitoring dashboard designed specifi
 - **🎨 Premium UI**: A modern, responsive dark-mode dashboard styled with glassmorphism, glowing accents, and dynamic animations.
 - **🖥️ Hardware Telemetry**:
   - **CPU & RAM**: Live utilization tracking, marketing name retrieval, and core count display.
-  - **Multi-Disk Storage**: Automatically scans and lists all active storage partitions with individual capacity bars.
+  - **Power Draw (Wattage)**: Real-time CPU and GPU wattage tracking, plus estimated monthly electricity costs based on run-time.
+  - **Multi-Disk Storage**: Automatically scans all active storage partitions with individual capacity bars and live read/write I/O speed throughput.
   - **Live Bandwidth**: Displays real-time download and upload transfer rates.
-  - **NVIDIA GPU Monitor**: Auto-detects NVIDIA cards and displays model name, utilization, VRAM usage, and GPU temperature.
+  - **NVIDIA GPU Monitor**: Auto-detects NVIDIA cards and displays model name, utilization, VRAM usage, power draw, and GPU temperature.
+- **📡 Latency Ping Sweep**: The dashboard server runs a background sweep to ping active node IPs and display round-trip latency (color-coded by speed).
 - **🔒 VPN Status**: Checks active network interfaces to display the state of your **Tailscale** and **OpenVPN** connections.
 - **🐳 Docker Containers**: Lists all local containers on each host with their current state (running/stopped).
-- **🔌 Auto-Registration & Offline Detection**: New agent-bearing machines register automatically, and the UI flags nodes as offline if they stop reporting for over 15 seconds.
+- **📌 Favorites Pinning**: Pin your most important servers to the top of the grid. Pin preferences are stored in the browser's `localStorage` for zero-server-overhead persistence.
+- **🔔 Alarm Chimes & Alert Hysteresis**: 
+  - Synthesizes sci-fi alarm sounds (via browser Web Audio API) and slides in critical warning alerts when CPU/GPU load or temperature exceed limits.
+  - Features dual-threshold **hysteresis** (e.g. triggers at 85%, recovers at 75%) to prevent flapping alert notifications when utilization fluctuates.
+  - Displays green success alerts when critical systems recover.
 
 ---
 
@@ -23,9 +29,9 @@ A premium, lightweight, real-time home lab monitoring dashboard designed specifi
 
 The dashboard uses a **Push-based model** that operates smoothly behind NATs, firewalls, and VPN tunnels:
 
-1. **`agent/` (Python client)**: Runs on monitored hosts (PCs, servers, NAS, virtual machines) and POSTs local metrics to the dashboard server every 5 seconds.
-2. **`backend/` (FastAPI server)**: Runs on the central dashboard server, stores the state of registered clients in-memory, and broadcasts updates to open dashboards.
-3. **`frontend/` (Vanilla Web UI)**: Static HTML, CSS, and JS served by the backend. No compilation or build pipelines (Vite/Webpack) are required at runtime.
+1. **`agent/` (Python client)**: Runs on monitored hosts and POSTs local metrics, drive speeds, and power draw to the dashboard server every 5 seconds.
+2. **`backend/` (FastAPI server)**: Runs on the central dashboard server, sweeps active node pings, stores client states in-memory, and broadcasts updates to open dashboards.
+3. **`frontend/` (Vanilla Web UI)**: Static HTML, CSS, and JS served by the backend. Features custom canvas line charts. No compilation or node build pipelines are required.
 
 ```mermaid
 sequenceDiagram
@@ -37,7 +43,7 @@ sequenceDiagram
     Backend-->>Browser: Sends current list of nodes (init)
     
     loop Every 5 seconds
-        Agent->>Agent: Query CPU, RAM, OS, all Disks, GPU, Net Speed & Docker
+        Agent->>Agent: Query CPU, RAM, OS, all Disks, GPU, Net Speed, I/O & Power
         Agent->>Backend: Post metrics (POST /api/report)
         Backend->>Backend: Update in-memory state
         Backend-->>Browser: Stream metrics update (metrics)
@@ -52,9 +58,11 @@ sequenceDiagram
 ```text
 ├── agent/
 │   ├── agent.py            # Portable metric collection script
+│   ├── homelab-agent.service # Systemd service template for Linux client
 │   └── requirements.txt    # Agent dependencies (psutil)
 ├── backend/
-│   ├── main.py             # FastAPI server & static file host
+│   ├── main.py             # FastAPI server, ping sweeper & static file host
+│   ├── homelab-dashboard.service # Systemd service template for APU/Server
 │   └── requirements.txt    # Server dependencies (fastapi, uvicorn)
 ├── frontend/
 │   ├── index.html          # Dashboard page structure
@@ -140,8 +148,6 @@ Deploy this lightweight agent on every machine you want to monitor:
      .\.venv\Scripts\python.exe agent.py
      ```
 
-Once started, the agent will instantly register and begin streaming metrics to your dashboard!
-
 #### Running as a systemd Service (Linux)
 
 To run the agent in the background as a systemd service on your Linux client machines:
@@ -166,6 +172,28 @@ To run the agent in the background as a systemd service on your Linux client mac
    ```bash
    sudo systemctl status homelab-agent.service
    ```
+
+#### Running silently in the background on Startup (Windows)
+
+To ensure the agent runs silently in the background on your Windows gaming machine (without opening an annoying terminal window at startup):
+
+1. Open **Task Scheduler** from the Start Menu.
+2. Click **Create Basic Task...** and name it `HomeLab Agent`.
+3. Set Trigger to **When I log on**.
+4. Set Action to **Start a Program**.
+5. Set **Program/script** to point to `pythonw.exe` inside your virtual environment (using `pythonw` runs the script silently with no console):
+   ```text
+   C:\path\to\homelab-dashboard\agent\.venv\Scripts\pythonw.exe
+   ```
+6. Set **Add arguments (optional)** to:
+   ```text
+   agent.py
+   ```
+7. Set **Start in (optional)** to your absolute agent directory:
+   ```text
+   C:\path\to\homelab-dashboard\agent
+   ```
+8. Click **Next** and **Finish**.
 
 ---
 
