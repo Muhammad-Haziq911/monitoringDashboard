@@ -83,7 +83,7 @@ def get_os_info():
     return f"{platform.system()} {platform.release()}"
 
 def get_temperature():
-    """Retrieve CPU temperature in Celsius (Linux fallback, None on Windows)."""
+    """Retrieve CPU temperature in Celsius (Linux/macOS native, Windows WMI fallback)."""
     try:
         # 1. Try psutil sensors
         if hasattr(psutil, "sensors_temperatures"):
@@ -100,6 +100,20 @@ def get_temperature():
         if os.path.exists("/sys/class/thermal/thermal_zone0/temp"):
             with open("/sys/class/thermal/thermal_zone0/temp", "r") as f:
                 return float(f.read().strip()) / 1000.0
+
+        # 3. Try WMI LibreHardwareMonitor/OpenHardwareMonitor on Windows
+        if platform.system() == "Windows":
+            # Query LibreHardwareMonitor
+            cmd = ['powershell', '-Command', "Get-CimInstance -Namespace root/LibreHardwareMonitor -ClassName Sensor | Where-Object { $_.SensorType -eq 'Temperature' -and ($_.Name -like '*CPU Package*' -or $_.Name -like '*CPU Core*') } | Select-Object -ExpandProperty Value"]
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=2, creationflags=creationflags)
+            if res.returncode == 0 and res.stdout.strip():
+                return float(res.stdout.strip().split('\n')[0])
+            
+            # Query OpenHardwareMonitor
+            cmd = ['powershell', '-Command', "Get-CimInstance -Namespace root/OpenHardwareMonitor -ClassName Sensor | Where-Object { $_.SensorType -eq 'Temperature' -and ($_.Name -like '*CPU Package*' -or $_.Name -like '*CPU Core*') } | Select-Object -ExpandProperty Value"]
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=2, creationflags=creationflags)
+            if res.returncode == 0 and res.stdout.strip():
+                return float(res.stdout.strip().split('\n')[0])
     except Exception:
         pass
     return None
