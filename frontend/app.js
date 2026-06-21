@@ -476,11 +476,15 @@ function updateSummary() {
     
     const totalPowerEl = document.getElementById('total-power');
     const totalPowerContainer = document.getElementById('total-power-container');
+    const totalCostEl = document.getElementById('total-cost');
     if (totalPowerEl) {
         totalPowerEl.textContent = `${sumPower.toFixed(0)}W`;
     }
     if (totalPowerContainer) {
         totalPowerContainer.title = `Estimated monthly cost: $${(sumPower * 0.2088).toFixed(2)} at $0.29/kWh`;
+    }
+    if (totalCostEl) {
+        totalCostEl.textContent = `$${(sumPower * 0.2088).toFixed(2)}/mo`;
     }
     
     // Update real-time power history
