@@ -1,0 +1,86 @@
+[
+    {
+        "name": "Jellyfin",
+        "url": "http://192.168.1.104:8096",
+        "icon": "fa-play",
+        "category": "Media"
+    },
+    {
+        "name": "Overseerr / Seerr",
+        "url": "http://192.168.1.104:5055",
+        "icon": "fa-magnifying-glass-plus",
+        "category": "Media"
+    },
+    {
+        "name": "Immich",
+        "url": "http://192.168.1.104:2283",
+        "icon": "fa-images",
+        "category": "Photos"
+    },
+    {
+        "name": "Uptime Kuma",
+        "url": "http://192.168.1.105:3001",
+        "icon": "fa-chart-line",
+        "category": "Monitoring"
+    },
+    {
+        "name": "Stirling PDF",
+        "url": "http://192.168.1.105:8080",
+        "icon": "fa-file-pdf",
+        "category": "Tools"
+    },
+    {
+        "name": "ChangeDetection",
+        "url": "http://192.168.1.105:5000",
+        "icon": "fa-eye",
+        "category": "Tools"
+    },
+    {
+        "name": "ntfy",
+        "url": "http://192.168.1.105:7070",
+        "icon": "fa-bell",
+        "category": "Notifications"
+    },
+    {
+        "name": "Sonarr",
+        "url": "http://192.168.1.104:8989",
+        "icon": "fa-tv",
+        "category": "Arr Stack"
+    },
+    {
+        "name": "Radarr",
+        "url": "http://192.168.1.104:7878",
+        "icon": "fa-film",
+        "category": "Arr Stack"
+    },
+    {
+        "name": "Prowlarr",
+        "url": "http://192.168.1.104:9696",
+        "icon": "fa-compass",
+        "category": "Arr Stack"
+    },
+    {
+        "name": "Bazarr",
+        "url": "http://192.168.1.104:6767",
+        "icon": "fa-closed-captioning",
+        "category": "Arr Stack"
+    },
+    {
+        "name": "Lidarr",
+        "url": "http://192.168.1.104:8686",
+        "icon": "fa-music",
+        "category": "Arr Stack"
+    },
+    {
+        "name": "Subgen",
+        "url": "http://192.168.1.104:9000",
+        "icon": "fa-keyboard",
+        "category": "Tools"
+    },
+    {
+        "name": "macOS VNC",
+        "url": "http://192.168.1.104:8006",
+        "icon": "fa-apple",
+        "category": "Virtualization"
+    }
+]

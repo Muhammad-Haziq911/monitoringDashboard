@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Home Lab Dashboard</title>
+    <title>Home Lab Services Status</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,8 +23,8 @@
             <h1>HomeLab<span>Dashboard</span></h1>
         </div>
         <nav class="app-nav">
-            <a href="index.html" class="nav-link active"><i class="fa-solid fa-desktop"></i> Devices</a>
-            <a href="services.html" class="nav-link"><i class="fa-solid fa-circle-nodes"></i> Services</a>
+            <a href="index.html" class="nav-link"><i class="fa-solid fa-desktop"></i> Devices</a>
+            <a href="services.html" class="nav-link active"><i class="fa-solid fa-circle-nodes"></i> Services</a>
         </nav>
         <div class="sys-summary">
             <div class="summary-item">
@@ -46,24 +46,12 @@
         </div>
     </header>
 
-    <div class="power-trend-section">
-        <div class="power-trend-card">
-            <div class="power-trend-header">
-                <h3><i class="fa-solid fa-chart-line"></i> Lab Power Trend</h3>
-                <span class="power-trend-subtitle">Last 6 Hours</span>
-            </div>
-            <div class="power-trend-body">
-                <canvas id="power-trend-canvas"></canvas>
-            </div>
-        </div>
-    </div>
-
-    <main class="dashboard-grid" id="dashboard-grid">
-        <!-- Devices will be dynamically rendered here -->
-        <div class="no-devices" id="no-devices">
+    <main class="services-grid" id="services-grid">
+        <!-- Services will be dynamically rendered here -->
+        <div class="no-devices" id="no-services">
             <i class="fa-solid fa-satellite-dish pulse-icon"></i>
-            <p>Waiting for clients to push metrics...</p>
-            <p class="subtext">Make sure the agent script is running on your monitored machines.</p>
+            <p>Pinging services...</p>
+            <p class="subtext">The APU box is loading and querying your configured local services.</p>
         </div>
     </main>
 
@@ -71,10 +59,7 @@
         <p>HomeLab Dashboard &bull; Real-time updates active</p>
     </footer>
 
-    <!-- Live Alerts Toasts -->
-    <div class="toast-container" id="toast-container"></div>
-
-    <!-- App Logic -->
-    <script src="app.js"></script>
+    <!-- App Logic for services -->
+    <script src="services.js"></script>
 </body>
 </html>

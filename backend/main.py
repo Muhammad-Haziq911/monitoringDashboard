@@ -4,6 +4,8 @@ import os
 import platform
 import re
 import time
+import urllib.error
+import urllib.request
 from typing import Dict, List
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,6 +30,62 @@ devices: Dict[str, dict] = {}
 # In-memory store for historical power draw (Last 6 hours)
 power_history: List[dict] = []
 MAX_POWER_HISTORY = 360  # 6 hours of 1-minute intervals
+
+# Services monitoring list
+services_list: List[dict] = []
+
+def load_services_config():
+    """Load services to monitor from services.json."""
+    global services_list
+    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "services.json")
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, "r") as f:
+                services_list = json.load(f)
+                # Initialize status keys
+                for s in services_list:
+                    s["online"] = False
+                    s["latency"] = 0.0
+        except Exception as e:
+            print(f"Error reading services.json: {e}")
+
+def get_sanitized_services() -> List[dict]:
+    """Return services list with URLs stripped out for security."""
+    return [
+        {
+            "name": s["name"],
+            "icon": s["icon"],
+            "category": s.get("category", "General"),
+            "online": s.get("online", False),
+            "latency": s.get("latency", 0.0)
+        }
+        for s in services_list
+    ]
+
+async def ping_service(service: dict):
+    """Check if an HTTP service is online internally (APU backend side) and record response time."""
+    url = service.get("url")
+    if not url:
+        return
+    
+    start_time = time.time()
+    try:
+        def run():
+            req = urllib.request.Request(url, headers={"User-Agent": "HomeLab-Dashboard-Monitor"})
+            with urllib.request.urlopen(req, timeout=2.0) as response:
+                response.read(1)
+                return True
+        await asyncio.to_thread(run)
+        latency = (time.time() - start_time) * 1000.0
+        service["online"] = True
+        service["latency"] = round(latency, 1)
+    except urllib.error.HTTPError as e:
+        latency = (time.time() - start_time) * 1000.0
+        service["online"] = True
+        service["latency"] = round(latency, 1)
+    except Exception:
+        service["online"] = False
+        service["latency"] = 0.0
 
 # Active SSE listener queues
 listeners: List[asyncio.Queue] = []
@@ -134,12 +192,29 @@ async def record_power_history_loop():
             print(f"Error in power history loop: {e}")
         await asyncio.sleep(60.0)
 
+async def check_services_loop():
+    """Background task to query services status every 30 seconds."""
+    while True:
+        try:
+            tasks = [ping_service(s) for s in services_list]
+            if tasks:
+                await asyncio.gather(*tasks)
+            
+            sanitized = get_sanitized_services()
+            await broadcast("services", sanitized)
+        except Exception as e:
+            print(f"Error in services loop: {e}")
+        await asyncio.sleep(30.0)
+
 @app.on_event("startup")
 async def startup_event():
+    load_services_config()
     # Start the non-blocking background ping sweep
     asyncio.create_task(ping_background_loop())
     # Start the power history loop
     asyncio.create_task(record_power_history_loop())
+    # Start the services loop
+    asyncio.create_task(check_services_loop())
 
 @app.post("/api/report")
 async def report_metrics(data: dict):
@@ -173,6 +248,10 @@ async def get_devices():
 async def get_power_history():
     return power_history
 
+@app.get("/api/services")
+async def get_services_endpoint():
+    return get_sanitized_services()
+
 @app.get("/api/stream")
 async def message_stream(request: Request):
     queue = asyncio.Queue()
@@ -183,10 +262,12 @@ async def message_stream(request: Request):
         get_device_status(info, current_time)
         for info in devices.values()
     ]
+    initial_services = get_sanitized_services()
     
     async def event_generator():
         try:
             yield f"event: init\ndata: {json.dumps(initial_state)}\n\n"
+            yield f"event: services_init\ndata: {json.dumps(initial_services)}\n\n"
             
             while True:
                 if await request.is_disconnected():
