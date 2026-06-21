@@ -839,6 +839,17 @@ function renderDeviceCard(device) {
         latencyText = ` &bull; <span class="latency-val" style="color: ${latColor}; font-weight: 550;"><i class="fa-solid fa-signal" style="font-size: 0.75rem; margin-right: 0.15rem;"></i>${device.latency.toFixed(0)}ms</span>`;
     }
     
+    // Build pending OS updates badge
+    let updatesHtml = '';
+    if (device.pending_updates !== undefined && device.pending_updates > 0) {
+        updatesHtml = `
+            <div class="updates-badge-container" title="${device.pending_updates} pending OS update(s) available">
+                <i class="fa-solid fa-circle-arrow-up pulse-icon-fast"></i>
+                <span class="updates-count">${device.pending_updates}</span>
+            </div>
+        `;
+    }
+
     card.innerHTML = `
         <div class="device-card-header">
             <div class="device-title-wrapper">
@@ -851,6 +862,7 @@ function renderDeviceCard(device) {
                 </div>
             </div>
             <div class="header-right-controls">
+                ${updatesHtml}
                 <div class="status-badge">
                     <span class="dot"></span>
                     <span>${isOnline ? 'Online' : 'Offline'}</span>

@@ -306,6 +306,51 @@ body {
     box-shadow: 0 0 8px var(--success);
 }
 
+/* Updates Badge styles */
+.updates-badge-container {
+    padding: 0.35rem 0.6rem;
+    border-radius: 30px;
+    font-size: 0.7rem;
+    font-weight: 650;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    color: var(--warning);
+    cursor: help;
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.05);
+    transition: all var(--transition-speed);
+}
+
+.updates-badge-container:hover {
+    background: rgba(245, 158, 11, 0.2);
+    border-color: rgba(245, 158, 11, 0.45);
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.15);
+}
+
+.device-card.offline .updates-badge-container {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.08);
+    color: var(--text-muted);
+    box-shadow: none;
+    cursor: default;
+}
+
+.device-card.offline .updates-badge-container .pulse-icon-fast {
+    animation: none;
+}
+
+.pulse-icon-fast {
+    animation: pulse-fast 1.2s infinite;
+}
+
+@keyframes pulse-fast {
+    0% { transform: scale(1); opacity: 0.8; }
+    50% { transform: scale(1.15); opacity: 1; }
+    100% { transform: scale(1); opacity: 0.8; }
+}
+
 /* Metadata Subtitle (OS/CPU Details) */
 .device-meta-subtitle {
     font-size: 0.8rem;

@@ -25,6 +25,8 @@ class AgentState:
         self.last_disk_time = None
         self.last_rapl_energy = None
         self.last_rapl_time = None
+        self.pending_updates = 0
+        self.last_update_check = 0.0
 
 state = AgentState()
 
@@ -81,6 +83,41 @@ def get_os_info():
     except Exception:
         pass
     return f"{platform.system()} {platform.release()}"
+
+def query_pending_updates():
+    """Retrieve the number of pending OS updates."""
+    sys_name = platform.system()
+    if sys_name == "Windows":
+        try:
+            # Native COM call to query pending Windows updates
+            cmd = ['powershell', '-Command', "(New-Object -ComObject Microsoft.Update.Session).CreateUpdateSearcher().Search(\"IsInstalled=0 and Type='Software' and IsHidden=0\").Updates.Count"]
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=10, creationflags=creationflags)
+            if res.returncode == 0 and res.stdout.strip():
+                return int(res.stdout.strip().split('\n')[0])
+        except Exception:
+            pass
+    elif sys_name == "Linux":
+        try:
+            # 1. On Ubuntu/Debian, try update-notifier cache first
+            path = "/var/lib/update-notifier/updates-available"
+            if os.path.exists(path):
+                with open(path, "r") as f:
+                    content = f.read()
+                match = re.search(r'(\d+)\s+updates?\s+can\s+be\s+applied', content, re.IGNORECASE)
+                if match:
+                    return int(match.group(1))
+            
+            # 2. Try the faster apt-check executable on Ubuntu
+            apt_check = "/usr/lib/update-notifier/apt-check"
+            if os.path.exists(apt_check):
+                res = subprocess.run([apt_check], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5)
+                if res.returncode == 0 and res.stderr.strip():
+                    parts = res.stderr.strip().split(';')
+                    if len(parts) >= 1:
+                        return int(parts[0])
+        except Exception:
+            pass
+    return 0
 
 def get_temperature():
     """Retrieve CPU temperature in Celsius (Linux/macOS native, Windows WMI fallback)."""
@@ -378,6 +415,18 @@ def gather_metrics():
     # Docker
     docker_containers = get_docker_containers()
     
+    # Check for pending OS updates asynchronously every 4 hours (14400s)
+    now = time.time()
+    if now - state.last_update_check >= 14400:
+        state.last_update_check = now
+        import threading
+        def run_check():
+            try:
+                state.pending_updates = query_pending_updates()
+            except Exception:
+                pass
+        threading.Thread(target=run_check, daemon=True).start()
+
     return {
         "hostname": hostname,
         "ip": ip,
@@ -397,7 +446,8 @@ def gather_metrics():
         "cpu_power": cpu_power,
         "gpu": gpu,
         "vpns": vpns,
-        "docker_containers": docker_containers
+        "docker_containers": docker_containers,
+        "pending_updates": state.pending_updates
     }
 
 def send_metrics(data):
