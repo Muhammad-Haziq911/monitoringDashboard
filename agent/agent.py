@@ -197,9 +197,12 @@ def get_disk_status():
         for part in psutil.disk_partitions(all=False):
             if 'cdrom' in part.opts or part.fstype == '':
                 continue
-            # Skip virtual file systems on Linux
-            if os.name != 'nt' and part.mountpoint.startswith(('/proc', '/sys', '/dev', '/run', '/boot')):
-                continue
+            # Skip virtual file systems and loop devices on Linux
+            if os.name != 'nt':
+                if part.mountpoint.startswith(('/proc', '/sys', '/dev', '/run', '/boot')):
+                    continue
+                if 'loop' in part.device or part.device.startswith('/dev/loop'):
+                    continue
             
             try:
                 usage = psutil.disk_usage(part.mountpoint)

@@ -896,9 +896,6 @@ function renderDeviceCard(device) {
                 </span>
             </div>
 
-            <!-- Multi disks storage list -->
-            ${disksHtml}
-
             <!-- Extra stats (Temp, uptime, power) -->
             <div class="stat-meta-grid">
                 ${tempHtml}
@@ -919,6 +916,9 @@ function renderDeviceCard(device) {
         ${gpuHtml}
         ${vpnHtml}
         ${dockerHtml}
+        
+        <!-- Multi disks storage list -->
+        ${disksHtml}
     `;
     
     // Draw sparklines after DOM content update has finished
