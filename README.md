@@ -1,6 +1,6 @@
 # 🖥️ HomeLab Dashboard
 
-A premium, lightweight, real-time home lab monitoring dashboard designed specifically for low-power servers (like PC Engines APU boards). It collects and displays status, system metrics, GPU usage, multi-disk storage, live bandwidth speeds, active VPNs, and Docker container states across multiple machines using a **Push-based** model and **Server-Sent Events (SSE)**.
+A premium, lightweight, real-time home lab monitoring dashboard designed specifically for low-power servers. It collects and displays status, system metrics, GPU usage, multi-disk storage, live bandwidth speeds, active VPNs, and Docker container states across multiple machines using a **Push-based** model and **Server-Sent Events (SSE)**.
 
 ---
 
@@ -23,14 +23,14 @@ A premium, lightweight, real-time home lab monitoring dashboard designed specifi
 
 The dashboard uses a **Push-based model** that operates smoothly behind NATs, firewalls, and VPN tunnels:
 
-1. **`agent/` (Python client)**: Runs on monitored hosts (Gaming PC, Server, NAS, APUs) and POSTs local metrics to the dashboard server every 5 seconds.
-2. **`backend/` (FastAPI server)**: Runs on the central APU, stores the state of registered clients in-memory, and broadcasts updates to open dashboards.
+1. **`agent/` (Python client)**: Runs on monitored hosts (PCs, servers, NAS, virtual machines) and POSTs local metrics to the dashboard server every 5 seconds.
+2. **`backend/` (FastAPI server)**: Runs on the central dashboard server, stores the state of registered clients in-memory, and broadcasts updates to open dashboards.
 3. **`frontend/` (Vanilla Web UI)**: Static HTML, CSS, and JS served by the backend. No compilation or build pipelines (Vite/Webpack) are required at runtime.
 
 ```mermaid
 sequenceDiagram
     participant Agent as Target Machine Agent
-    participant Backend as APU Dashboard Server
+    participant Backend as Dashboard Server
     participant Browser as Web Browser Dashboard
 
     Browser->>Backend: Connects to SSE (GET /api/stream)
@@ -67,9 +67,9 @@ sequenceDiagram
 
 ## 🚀 Setup & Installation
 
-### 1. Central Server Setup (APU / Main Server)
+### 1. Central Server Setup
 
-On your main dashboard server (e.g., APU running Linux/Ubuntu/Debian):
+On your main dashboard server (running Linux/Ubuntu/Debian or Windows):
 
 1. **Clone the repository**:
    ```bash
@@ -86,13 +86,13 @@ On your main dashboard server (e.g., APU running Linux/Ubuntu/Debian):
    ```bash
    uvicorn main:app --host 0.0.0.0 --port 8000
    ```
-4. **Access the Web UI**: Open your browser and navigate to `http://<YOUR-APU-IP>:8000`.
+4. **Access the Web UI**: Open your browser and navigate to `http://<YOUR-SERVER-IP>:8000`.
 
-*Tip: You can set up Uvicorn as a systemd service to ensure the dashboard starts automatically at boot.*
+*Tip: You can set up Uvicorn as a systemd service (Linux) or run it as a background service to ensure the dashboard starts automatically at boot.*
 
 ---
 
-### 2. Client Agent Setup (Gaming PC / NAS / Other Nodes)
+### 2. Client Agent Setup
 
 Deploy this lightweight agent on every machine you want to monitor:
 
@@ -100,7 +100,7 @@ Deploy this lightweight agent on every machine you want to monitor:
 2. **Configure the Server URL**:
    Open `agent.py` in an editor and change the `SERVER_URL` variable to point to your central server's IP address:
    ```python
-   SERVER_URL = "http://<YOUR-APU-IP>:8000/api/report"
+   SERVER_URL = "http://<YOUR-SERVER-IP>:8000/api/report"
    ```
 3. **Install dependencies and run**:
    - **Linux / NAS**:

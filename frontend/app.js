@@ -64,7 +64,7 @@ function getDeviceIcon(hostname) {
     if (name.includes('nas') || name.includes('storage') || name.includes('vault')) {
         return 'fa-solid fa-database';
     }
-    if (name.includes('apu') || name.includes('router') || name.includes('switch') || name.includes('engine')) {
+    if (name.includes('router') || name.includes('switch') || name.includes('network') || name.includes('hub')) {
         return 'fa-solid fa-network-wired';
     }
     return 'fa-solid fa-server';
