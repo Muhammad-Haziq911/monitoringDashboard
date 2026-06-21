@@ -10,6 +10,7 @@ import psutil
 
 # Configuration
 SERVER_URL = "http://192.168.1.106:8000/api/report"  # Adjust to your dashboard server IP in production
+AGENT_KEY = "your_secret_key_here"  # Put your generated server Agent Key here
 INTERVAL = 5  # Reporting interval in seconds
 
 # Prevent console window popping up/stealing focus when spawning subprocesses on Windows
@@ -451,12 +452,15 @@ def gather_metrics():
     }
 
 def send_metrics(data):
-    """POST JSON payload to server."""
+    """POST JSON payload to server with verification key."""
     payload = json.dumps(data).encode("utf-8")
     req = urllib.request.Request(
         SERVER_URL,
         data=payload,
-        headers={"Content-Type": "application/json"}
+        headers={
+            "Content-Type": "application/json",
+            "X-Agent-Key": AGENT_KEY
+        }
     )
     try:
         with urllib.request.urlopen(req, timeout=3) as response:

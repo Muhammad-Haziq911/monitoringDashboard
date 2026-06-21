@@ -1110,4 +1110,163 @@ body {
     }
 }
 
+/* Navigation Logout Button styling */
+.nav-logout-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    cursor: pointer;
+    padding: 0.35rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 0.5rem;
+    transition: all var(--transition-speed);
+}
+
+.nav-logout-btn:hover {
+    color: var(--accent-pink);
+    background: rgba(244, 63, 94, 0.1);
+    transform: scale(1.05);
+}
+
+/* Authentication Overlay styling */
+.auth-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(11, 15, 25, 0.85);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999;
+}
+
+.auth-card {
+    background: rgba(20, 28, 47, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 28px;
+    padding: 2.5rem;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 20px 50px -15px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 242, 254, 0.03);
+    text-align: center;
+}
+
+.auth-card-header {
+    margin-bottom: 2rem;
+}
+
+.auth-logo-box {
+    width: 60px;
+    height: 60px;
+    background: rgba(0, 242, 254, 0.1);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem auto;
+    border: 1px solid rgba(0, 242, 254, 0.25);
+    box-shadow: 0 0 15px rgba(0, 242, 254, 0.1);
+}
+
+.auth-logo {
+    font-size: 1.5rem;
+    color: var(--accent-teal);
+}
+
+.auth-card-header h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.4rem;
+    letter-spacing: -0.5px;
+}
+
+.auth-card-header p {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.auth-card form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    text-align: left;
+}
+
+.auth-card .input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.auth-card .input-group label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.auth-card .input-group label i {
+    color: var(--accent-teal);
+}
+
+.auth-card .input-group input {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 0.8rem 1rem;
+    color: var(--text-primary);
+    font-family: var(--font-main);
+    font-size: 0.9rem;
+    transition: all var(--transition-speed);
+    outline: none;
+}
+
+.auth-card .input-group input:focus {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: var(--accent-teal);
+    box-shadow: 0 0 12px rgba(0, 242, 254, 0.15);
+}
+
+.auth-error-msg {
+    color: var(--danger);
+    font-size: 0.78rem;
+    font-weight: 500;
+    min-height: 1rem;
+    margin: -0.2rem 0;
+}
+
+.auth-btn {
+    background: var(--primary-glow);
+    border: none;
+    border-radius: 12px;
+    padding: 0.85rem;
+    color: #0b0f19;
+    font-weight: 600;
+    font-family: var(--font-main);
+    font-size: 0.95rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    box-shadow: 0 0 15px rgba(0, 242, 254, 0.2);
+    transition: all var(--transition-speed);
+}
+
+.auth-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 25px rgba(0, 242, 254, 0.4);
+}
+
 

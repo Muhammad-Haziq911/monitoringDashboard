@@ -41,11 +41,198 @@ const GPU_TEMP_ALERT_THRESHOLD = 80.0; // °C
 
 // Global range state
 let activePowerRange = '6h';
+let isFirstRun = false;
+
+// Authenticated fetch helper
+async function fetchWithAuth(url, options = {}) {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+        options.headers = {
+            ...options.headers,
+            'Authorization': `Bearer ${token}`
+        };
+    }
+    const response = await fetch(url, options);
+    if (response.status === 401) {
+        handleLogout();
+        throw new Error("Unauthorized");
+    }
+    return response;
+}
+
+// Check authentication status on load
+async function checkAuth() {
+    const token = localStorage.getItem('auth_token');
+    const authOverlay = document.getElementById('auth-overlay');
+    
+    if (token) {
+        authOverlay.style.display = 'none';
+        
+        // Show agent key if saved
+        const savedAgentKey = localStorage.getItem('agent_auth_key');
+        if (savedAgentKey) {
+            displayAgentKey(savedAgentKey);
+        } else {
+            // Fetch key from backend
+            try {
+                const res = await fetchWithAuth(`${window.location.origin}/api/auth/agent-key`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.agent_auth_key) {
+                        localStorage.setItem('agent_auth_key', data.agent_auth_key);
+                        displayAgentKey(data.agent_auth_key);
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to load agent key:", e);
+            }
+        }
+        
+        // Setup logout button listener
+        const logoutBtn = document.getElementById('logout-btn');
+        if (logoutBtn) {
+            logoutBtn.onclick = handleLogout;
+        }
+        
+        return true;
+    }
+    
+    // Show overlay and check user existence
+    authOverlay.style.display = 'flex';
+    try {
+        const response = await fetch(`${window.location.origin}/api/auth/status`);
+        if (response.ok) {
+            const data = await response.json();
+            isFirstRun = !data.users_exist;
+            
+            const titleEl = document.getElementById('auth-title');
+            const subtitleEl = document.getElementById('auth-subtitle');
+            const submitBtn = document.getElementById('auth-submit-btn');
+            
+            if (isFirstRun) {
+                titleEl.textContent = 'Create Admin Account';
+                subtitleEl.textContent = 'Create your administrator username and password to secure the dashboard.';
+                submitBtn.innerHTML = '<span>Register & Login</span> <i class="fa-solid fa-user-plus"></i>';
+            } else {
+                titleEl.textContent = 'Dashboard Login';
+                subtitleEl.textContent = 'Please enter your credentials to access the lab monitor.';
+                submitBtn.innerHTML = '<span>Sign In</span> <i class="fa-solid fa-arrow-right-to-bracket"></i>';
+            }
+        }
+    } catch (e) {
+        console.error("Auth status check failed:", e);
+    }
+    
+    // Bind form submit handler
+    const authForm = document.getElementById('auth-form');
+    if (authForm) {
+        authForm.onsubmit = handleAuthSubmit;
+    }
+    
+    return false;
+}
+
+// Display and setup agent key clipboard copying
+function displayAgentKey(key) {
+    const keyContainer = document.getElementById('agent-key-container');
+    const keyValEl = document.getElementById('agent-key-val');
+    if (keyContainer && keyValEl) {
+        keyContainer.style.display = 'flex';
+        keyValEl.textContent = key;
+        keyContainer.onclick = () => {
+            navigator.clipboard.writeText(key);
+            keyValEl.textContent = 'Copied!';
+            keyValEl.style.color = 'var(--success)';
+            setTimeout(() => {
+                keyValEl.textContent = key;
+                keyValEl.style.color = 'var(--accent-teal)';
+            }, 2000);
+        };
+    }
+}
+
+// Handle login or registration submission
+async function handleAuthSubmit(e) {
+    e.preventDefault();
+    const usernameEl = document.getElementById('auth-username');
+    const passwordEl = document.getElementById('auth-password');
+    const errorMsgEl = document.getElementById('auth-error-msg');
+    
+    errorMsgEl.textContent = '';
+    
+    const payload = {
+        username: usernameEl.value,
+        password: passwordEl.value
+    };
+    
+    const endpoint = isFirstRun ? '/api/auth/register' : '/api/auth/login';
+    
+    try {
+        const response = await fetch(`${window.location.origin}${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            localStorage.setItem('auth_token', data.token);
+            if (data.agent_auth_key) {
+                localStorage.setItem('agent_auth_key', data.agent_auth_key);
+            }
+            
+            // Success: clear inputs, hide overlay and trigger SSE load
+            usernameEl.value = '';
+            passwordEl.value = '';
+            document.getElementById('auth-overlay').style.display = 'none';
+            
+            // Show key immediately
+            if (data.agent_auth_key) {
+                displayAgentKey(data.agent_auth_key);
+            }
+            
+            // Connect to real-time stream
+            connectSSE();
+        } else {
+            const errData = await response.json();
+            errorMsgEl.textContent = errData.detail || 'Authentication failed.';
+        }
+    } catch (err) {
+        errorMsgEl.textContent = 'Server connection error.';
+        console.error("Auth submission error:", err);
+    }
+}
+
+// Log out and clear tokens
+async function handleLogout() {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+        try {
+            await fetch(`${window.location.origin}/api/auth/logout`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token })
+            });
+        } catch (e) {
+            console.error("Logout request failed:", e);
+        }
+    }
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('agent_auth_key');
+    
+    // Close SSE if active
+    if (eventSource) {
+        eventSource.close();
+    }
+    
+    // Reload page to re-trigger login overlay check
+    window.location.reload();
+}
 
 // Fetch initial power history from server
 async function initPowerHistory() {
     try {
-        const response = await fetch(`${window.location.origin}/api/power-history`);
+        const response = await fetchWithAuth(`${window.location.origin}/api/power-history`);
         if (response.ok) {
             powerHistory = await response.json();
             drawPowerTrendChart();
@@ -78,7 +265,7 @@ async function switchPowerRange(range) {
     }
 
     try {
-        const response = await fetch(`${window.location.origin}/api/power-history?range=${range}`);
+        const response = await fetchWithAuth(`${window.location.origin}/api/power-history?range=${range}`);
         if (response.ok) {
             powerHistory = await response.json();
             drawPowerTrendChart();
@@ -219,6 +406,9 @@ function drawPowerTrendChart() {
 
 // Connect to Server-Sent Events stream
 function connectSSE() {
+    const token = localStorage.getItem('auth_token');
+    if (!token) return;
+
     initPowerHistory();
     
     // Wire up range selector buttons
@@ -229,10 +419,16 @@ function connectSSE() {
         });
     });
     
-    const streamUrl = `${window.location.origin}/api/stream`;
+    const streamUrl = `${window.location.origin}/api/stream?token=${token}`;
     console.log(`Connecting to SSE stream at: ${streamUrl}`);
     
     eventSource = new EventSource(streamUrl);
+    
+    eventSource.onerror = (err) => {
+        console.error("SSE Connection error:", err);
+        // On stream errors, verify if auth has expired
+        checkAuth();
+    };
     
     eventSource.addEventListener('init', (event) => {
         try {
@@ -1082,7 +1278,13 @@ setInterval(() => {
     }
 }, 5000);
 
-window.addEventListener('DOMContentLoaded', connectSSE);
+window.addEventListener('DOMContentLoaded', () => {
+    checkAuth().then(isAuth => {
+        if (isAuth) {
+            connectSSE();
+        }
+    });
+});
 window.addEventListener('click', () => {
     // Resume audio context on user interaction if blocked by browser autoplay policy
     if (audioCtx && audioCtx.state === 'suspended') {

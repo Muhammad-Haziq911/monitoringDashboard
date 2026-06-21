@@ -8,7 +8,7 @@ import time
 import urllib.error
 import urllib.request
 from typing import Dict, List
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Header, Query, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -38,10 +38,11 @@ MAX_POWER_HISTORY = 360  # 6 hours of 1-minute intervals
 services_list: List[dict] = []
 
 def init_db():
-    """Create the SQLite history table and indexes if not exists."""
+    """Create the SQLite history and auth tables and indexes if not exists."""
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
+        # Power log table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS power_log (
                 timestamp REAL,
@@ -49,10 +50,89 @@ def init_db():
             )
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_power_log_timestamp ON power_log(timestamp)")
+        
+        # Users table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                username TEXT PRIMARY KEY,
+                password_hash TEXT,
+                salt TEXT,
+                created_at REAL
+            )
+        """)
+        
+        # Sessions table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sessions (
+                token TEXT PRIMARY KEY,
+                username TEXT,
+                expires_at REAL
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at)")
+        
+        # Settings table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        """)
+        
+        # Generate agent key if not exists
+        cursor.execute("SELECT value FROM settings WHERE key = 'agent_auth_key'")
+        row = cursor.fetchone()
+        if not row:
+            import secrets
+            # Generate a 32-character secure random agent key
+            new_key = secrets.token_hex(16)
+            cursor.execute("INSERT INTO settings (key, value) VALUES ('agent_auth_key', ?)", (new_key,))
+            
         conn.commit()
         conn.close()
     except Exception as e:
         print(f"Error initializing database: {e}")
+
+def get_agent_auth_key() -> str:
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM settings WHERE key = 'agent_auth_key'")
+        row = cursor.fetchone()
+        conn.close()
+        return row[0] if row else ""
+    except Exception:
+        return ""
+
+def verify_session_token(token: str) -> str:
+    """Verifies a session token. Returns username if valid, otherwise None."""
+    if not token:
+        return None
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        current_time = time.time()
+        cursor.execute("SELECT username FROM sessions WHERE token = ? AND expires_at > ?", (token, current_time))
+        row = cursor.fetchone()
+        conn.close()
+        return row[0] if row else None
+    except Exception:
+        return None
+
+def get_current_user(authorization: str = Header(None)) -> str:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid authentication credentials"
+        )
+    token = authorization.split(" ")[1]
+    username = verify_session_token(token)
+    if not username:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session has expired or is invalid"
+        )
+    return username
 
 def load_power_history_from_db():
     """Load the last 6 hours of power history from SQLite on startup."""
@@ -271,8 +351,140 @@ async def startup_event():
     # Start the services loop
     asyncio.create_task(check_services_loop())
 
+# Authentication & User Management Endpoints
+
+@app.get("/api/auth/status")
+async def auth_status():
+    """Check if any user exists in the system."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM users")
+        count = cursor.fetchone()[0]
+        conn.close()
+        return {"users_exist": count > 0}
+    except Exception as e:
+        return {"users_exist": False, "error": str(e)}
+
+@app.post("/api/auth/register")
+async def register(payload: dict):
+    username = payload.get("username")
+    password = payload.get("password")
+    
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="Missing username or password")
+        
+    username = username.strip()
+    if len(username) < 3 or len(password) < 6:
+        raise HTTPException(status_code=400, detail="Username must be >= 3 chars, password >= 6 chars")
+        
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM users")
+        user_count = cursor.fetchone()[0]
+        if user_count > 0:
+            conn.close()
+            raise HTTPException(status_code=403, detail="Registration is disabled. Admin user already exists.")
+            
+        import hashlib
+        import secrets
+        
+        # Hash password using PBKDF2-SHA256
+        salt = secrets.token_bytes(16)
+        pw_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100000).hex()
+        salt_hex = salt.hex()
+        
+        cursor.execute(
+            "INSERT INTO users (username, password_hash, salt, created_at) VALUES (?, ?, ?, ?)",
+            (username, pw_hash, salt_hex, time.time())
+        )
+        conn.commit()
+        conn.close()
+        
+        return await login(payload)
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+@app.post("/api/auth/login")
+async def login(payload: dict):
+    username = payload.get("username")
+    password = payload.get("password")
+    
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="Missing username or password")
+        
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT password_hash, salt FROM users WHERE username = ?", (username.strip(),))
+        row = cursor.fetchone()
+        
+        if not row:
+            conn.close()
+            raise HTTPException(status_code=401, detail="Invalid username or password")
+            
+        stored_hash, salt_hex = row
+        salt = bytes.fromhex(salt_hex)
+        import hashlib
+        import secrets
+        
+        # Verify password
+        pw_hash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100000).hex()
+        if pw_hash != stored_hash:
+            conn.close()
+            raise HTTPException(status_code=401, detail="Invalid username or password")
+            
+        # Create session token
+        token = secrets.token_hex(32)
+        # 14 days expiration
+        expires_at = time.time() + (14 * 24 * 3600)
+        cursor.execute("INSERT INTO sessions (token, username, expires_at) VALUES (?, ?, ?)", (token, username, expires_at))
+        conn.commit()
+        conn.close()
+        
+        agent_key = get_agent_auth_key()
+        
+        return {
+            "token": token,
+            "username": username,
+            "expires_at": expires_at,
+            "agent_auth_key": agent_key
+        }
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+@app.post("/api/auth/logout")
+async def logout(payload: dict):
+    token = payload.get("token")
+    if token:
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM sessions WHERE token = ?", (token,))
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+    return {"status": "ok"}
+
+@app.get("/api/auth/agent-key")
+async def get_agent_key_endpoint(current_user: str = Depends(get_current_user)):
+    return {"agent_auth_key": get_agent_auth_key()}
+
+
+# Secured Dashboard Metrics Endpoints
+
 @app.post("/api/report")
-async def report_metrics(data: dict):
+async def report_metrics(data: dict, x_agent_key: str = Header(None)):
+    stored_key = get_agent_auth_key()
+    if not x_agent_key or x_agent_key != stored_key:
+        raise HTTPException(status_code=401, detail="Unauthorized agent key")
+
     hostname = data.get("hostname")
     if not hostname:
         return {"status": "error", "message": "Missing hostname"}
@@ -292,7 +504,7 @@ async def report_metrics(data: dict):
     return {"status": "ok"}
 
 @app.get("/api/devices")
-async def get_devices():
+async def get_devices(current_user: str = Depends(get_current_user)):
     current_time = time.time()
     return {
         name: get_device_status(info, current_time)
@@ -300,7 +512,7 @@ async def get_devices():
     }
 
 @app.get("/api/power-history")
-async def get_power_history(range: str = "6h"):
+async def get_power_history(range: str = "6h", current_user: str = Depends(get_current_user)):
     current_time = time.time()
     
     # 6h range defaults to the in-memory array for speed
@@ -313,9 +525,6 @@ async def get_power_history(range: str = "6h"):
             cursor = conn.cursor()
             
             # Select grouping interval and start timestamp based on range
-            # 24h: group by 5-minute buckets (300 seconds)
-            # 7d: group by 30-minute buckets (1800 seconds)
-            # 30d: group by 2-hour buckets (7200 seconds)
             if range == "24h":
                 start_time = current_time - 86400
                 interval = 300
@@ -347,11 +556,18 @@ async def get_power_history(range: str = "6h"):
     return await asyncio.to_thread(fetch_data)
 
 @app.get("/api/services")
-async def get_services_endpoint():
+async def get_services_endpoint(current_user: str = Depends(get_current_user)):
     return get_sanitized_services()
 
 @app.get("/api/stream")
-async def message_stream(request: Request):
+async def message_stream(request: Request, token: str = Query(None)):
+    username = verify_session_token(token)
+    if not username:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized stream connection"
+        )
+        
     queue = asyncio.Queue()
     listeners.append(queue)
     
