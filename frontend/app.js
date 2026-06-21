@@ -178,7 +178,7 @@ function connectSSE() {
         try {
             const device = JSON.parse(event.data);
             
-            // Maintain history for graphs
+            // Maintain history and alert states for graphs/hysteresis
             if (devices[device.hostname]) {
                 const oldHistory = devices[device.hostname].cpuHistory || [];
                 device.cpuHistory = [...oldHistory, device.cpu_usage].slice(-30);
@@ -186,6 +186,10 @@ function connectSSE() {
                 if (device.gpu) {
                     const oldGpuHistory = devices[device.hostname].gpuHistory || [];
                     device.gpuHistory = [...oldGpuHistory, device.gpu.utilization].slice(-30);
+                }
+                
+                if (devices[device.hostname].alerts) {
+                    device.alerts = devices[device.hostname].alerts;
                 }
             } else {
                 device.cpuHistory = [device.cpu_usage];
