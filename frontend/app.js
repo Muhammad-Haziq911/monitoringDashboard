@@ -559,7 +559,17 @@ function renderDeviceCard(device) {
         `;
     }
     
-    // Multi-Disk storage list
+    // Multi-Disk storage list and speeds
+    let diskSpeedHtml = '';
+    if (device.disk_speeds) {
+        diskSpeedHtml = `
+            <span class="section-speed-meta" style="font-size: 0.72rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.25rem;">
+                <i class="fa-solid fa-arrow-down" style="color: var(--accent-teal);"></i> R: ${formatSpeed(device.disk_speeds.read_speed)}
+                <i class="fa-solid fa-arrow-up" style="color: var(--accent-purple); margin-left: 0.4rem;"></i> W: ${formatSpeed(device.disk_speeds.write_speed)}
+            </span>
+        `;
+    }
+
     let disksHtml = '';
     if (device.disks && device.disks.length > 0) {
         const diskItems = device.disks.map(disk => `
@@ -582,9 +592,12 @@ function renderDeviceCard(device) {
         
         disksHtml = `
             <div class="disks-list">
-                <span class="section-title" style="margin-bottom: 0.4rem; padding-top: 0;">
-                    <i class="fa-solid fa-hdd"></i> Storage Devices
-                </span>
+                <div class="section-title-container" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                    <span class="section-title" style="padding-top: 0; margin-bottom: 0;">
+                        <i class="fa-solid fa-hdd"></i> Storage Devices
+                    </span>
+                    ${diskSpeedHtml}
+                </div>
                 ${diskItems}
             </div>
         `;
@@ -592,6 +605,12 @@ function renderDeviceCard(device) {
         const diskPct = ((device.disk.used / device.disk.total) * 100).toFixed(0);
         disksHtml = `
             <div class="disks-list">
+                <div class="section-title-container" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+                    <span class="section-title" style="padding-top: 0; margin-bottom: 0;">
+                        <i class="fa-solid fa-hdd"></i> Storage Devices
+                    </span>
+                    ${diskSpeedHtml}
+                </div>
                 <div class="stat-row disk-item">
                     <div class="stat-label-container">
                         <span class="stat-label"><i class="fa-solid fa-hard-drive"></i> Disk</span>
@@ -642,6 +661,16 @@ function renderDeviceCard(device) {
     const osInfo = device.os_info || 'Unknown OS';
     const cpuModel = device.cpu_model || 'Unknown CPU';
     
+    // Build latency indicator
+    let latencyText = '';
+    if (device.latency !== undefined && device.latency !== null) {
+        let latColor = 'var(--accent-teal)';
+        if (device.latency > 150) latColor = 'var(--danger)';
+        else if (device.latency > 60) latColor = 'var(--warning)';
+        
+        latencyText = ` &bull; <span class="latency-val" style="color: ${latColor}; font-weight: 550;"><i class="fa-solid fa-signal" style="font-size: 0.75rem; margin-right: 0.15rem;"></i>${device.latency.toFixed(0)}ms</span>`;
+    }
+    
     card.innerHTML = `
         <div class="device-card-header">
             <div class="device-title-wrapper">
@@ -650,7 +679,7 @@ function renderDeviceCard(device) {
                 </div>
                 <div class="device-info">
                     <h3>${device.hostname}</h3>
-                    <span class="ip-addr">${device.ip || 'Unknown IP'}</span>
+                    <span class="ip-addr">${device.ip || 'Unknown IP'}${latencyText}</span>
                 </div>
             </div>
             <div class="header-right-controls">

@@ -17,6 +17,9 @@ class AgentState:
         self.last_net_bytes_sent = None
         self.last_net_bytes_recv = None
         self.last_net_time = None
+        self.last_disk_read = None
+        self.last_disk_write = None
+        self.last_disk_time = None
 
 state = AgentState()
 
@@ -152,6 +155,37 @@ def get_disk_status():
         pass
     return disks
 
+def get_disk_speeds():
+    """Calculate average disk read and write speeds in Bytes/sec."""
+    try:
+        # Check if disk IO counters is supported on this system
+        counters = psutil.disk_io_counters()
+        now = time.time()
+        
+        if state.last_disk_read is None:
+            state.last_disk_read = counters.read_bytes
+            state.last_disk_write = counters.write_bytes
+            state.last_disk_time = now
+            return {"read_speed": 0.0, "write_speed": 0.0}
+            
+        dt = now - state.last_disk_time
+        if dt <= 0:
+            return {"read_speed": 0.0, "write_speed": 0.0}
+            
+        read_speed = (counters.read_bytes - state.last_disk_read) / dt
+        write_speed = (counters.write_bytes - state.last_disk_write) / dt
+        
+        state.last_disk_read = counters.read_bytes
+        state.last_disk_write = counters.write_bytes
+        state.last_disk_time = now
+        
+        return {
+            "read_speed": read_speed,
+            "write_speed": write_speed
+        }
+    except Exception:
+        return {"read_speed": 0.0, "write_speed": 0.0}
+
 def get_network_speeds():
     """Calculate average network download and upload speeds in Bytes/sec."""
     try:
@@ -251,8 +285,9 @@ def gather_metrics():
         "free": mem.available
     }
     
-    # Disks (Multiple)
+    # Disks (Multiple) and speeds
     disks = get_disk_status()
+    disk_speeds = get_disk_speeds()
     
     # Network bandwidth
     network = get_network_speeds()
@@ -284,6 +319,7 @@ def gather_metrics():
         "cpu_usage": cpu_usage,
         "memory": memory_info,
         "disks": disks,
+        "disk_speeds": disk_speeds,
         "network": network,
         "uptime": uptime,
         "temp": temp,

@@ -1,6 +1,8 @@
 import asyncio
 import json
 import os
+import platform
+import re
 import time
 from typing import Dict, List
 from fastapi import FastAPI, Request
@@ -39,13 +41,68 @@ def get_device_status(device_info: dict, current_time: float) -> dict:
 async def broadcast(event_type: str, data: dict):
     """Broadcast an event to all connected SSE clients."""
     payload = f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
-    # Create a copy of the list to avoid modification during iteration
     for queue in list(listeners):
         try:
             await queue.put(payload)
         except Exception:
-            # If putting in queue fails, we remove it in finally block of stream anyway
             pass
+
+async def ping_host(ip: str) -> float:
+    """Ping a host and return round-trip latency in ms, or None if unreachable."""
+    try:
+        is_win = platform.system() == "Windows"
+        # 1 packet, 1 second timeout (Linux -W, Windows -w 1000)
+        cmd = ["ping", "-n", "1", "-w", "1000", ip] if is_win else ["ping", "-c", "1", "-W", "1", ip]
+        
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, _ = await proc.communicate()
+        
+        if proc.returncode == 0:
+            output = stdout.decode(errors='ignore')
+            # Look for "time=Xms" or "time=X.Y ms"
+            match = re.search(r'time[=<]([\d\.]+)\s*ms', output, re.IGNORECASE)
+            if match:
+                return float(match.group(1))
+            match = re.search(r'time=([\d\.]+)', output, re.IGNORECASE)
+            if match:
+                return float(match.group(1))
+    except Exception:
+        pass
+    return None
+
+async def ping_background_loop():
+    """Background task to periodically ping registered nodes and update latency."""
+    while True:
+        try:
+            current_time = time.time()
+            hostnames = list(devices.keys())
+            for hostname in hostnames:
+                device = devices.get(hostname)
+                if device:
+                    # Check if device is active before pinging
+                    is_active = (current_time - device.get("last_seen", 0)) < OFFLINE_THRESHOLD
+                    if is_active and device.get("ip"):
+                        latency = await ping_host(device["ip"])
+                        device["latency"] = latency
+                    else:
+                        device["latency"] = None
+                    
+                    # Broadcast latency update
+                    enriched = get_device_status(device, current_time)
+                    await broadcast("metrics", enriched)
+        except Exception as e:
+            print(f"Error in ping loop: {e}")
+        # Sleep for 10 seconds before next ping sweep
+        await asyncio.sleep(10.0)
+
+@app.on_event("startup")
+async def startup_event():
+    # Start the non-blocking background ping sweep
+    asyncio.create_task(ping_background_loop())
 
 @app.post("/api/report")
 async def report_metrics(data: dict):
@@ -54,10 +111,15 @@ async def report_metrics(data: dict):
         return {"status": "error", "message": "Missing hostname"}
     
     current_time = time.time()
+    # Preserving latency from background ping loop if already present
+    if hostname in devices and "latency" in devices[hostname]:
+        data["latency"] = devices[hostname]["latency"]
+    else:
+        data["latency"] = None
+        
     data["last_seen"] = current_time
     devices[hostname] = data
     
-    # Enrich the data with online status and broadcast
     enriched = get_device_status(data, current_time)
     await broadcast("metrics", enriched)
     return {"status": "ok"}
@@ -83,14 +145,12 @@ async def message_stream(request: Request):
     
     async def event_generator():
         try:
-            # Yield initial state immediately on connect
             yield f"event: init\ndata: {json.dumps(initial_state)}\n\n"
             
             while True:
                 if await request.is_disconnected():
                     break
                 try:
-                    # 10s keepalive timeout
                     data = await asyncio.wait_for(queue.get(), timeout=10.0)
                     yield data
                 except asyncio.TimeoutError:
@@ -104,7 +164,6 @@ async def message_stream(request: Request):
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 # Mount frontend static files
-# We look for index.html in c:/Dashboard/frontend
 backend_dir = os.path.dirname(os.path.abspath(__file__))
 frontend_dir = os.path.abspath(os.path.join(backend_dir, "../frontend"))
 
