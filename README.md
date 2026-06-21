@@ -8,6 +8,10 @@ A premium, lightweight, real-time home lab monitoring dashboard designed specifi
 
 - **🌐 Real-Time Updates**: Leverages Server-Sent Events (SSE) for instant, low-overhead updates to your browser without polling.
 - **🎨 Premium UI**: A modern, responsive dark-mode dashboard styled with glassmorphism, glowing accents, and dynamic animations.
+- **🔒 Admin Authentication**: Password-protected access using industry-standard PBKDF2-SHA256 password hashing. Features a secure first-run setup overlay for creating the administrator account, blocking any unauthenticated requests.
+- **🔑 Agent API Security**: Secures metrics reporting by validating a unique `X-Agent-Key` header on ingestion, preventing unauthorized endpoints from submitting fake telemetry.
+- **📊 30-Day SQLite History**: Power history is persisted locally in `backend/history.db` on your SSD. Features time-range buttons on the UI (`6H`, `24H`, `7D`, `30D`) and SQL-level downsampling for ultra-fast load times.
+- **🔄 Pending OS Updates**: Automatically checks for pending OS/software updates (asynchronously in a background thread once every 4 hours to prevent network blocking). Displays a glowing, pulsing warning badge next to the online status of the client card.
 - **🖥️ Hardware Telemetry**:
   - **CPU & RAM**: Live utilization tracking, marketing name retrieval, and core count display.
   - **Power Draw (Wattage)**: Real-time CPU and GPU wattage tracking, plus estimated monthly electricity costs based on run-time.
@@ -94,7 +98,9 @@ On your main dashboard server (running Linux/Ubuntu/Debian or Windows):
    ```bash
    uvicorn main:app --host 0.0.0.0 --port 8000 --timeout-graceful-shutdown 1
    ```
-4. **Access the Web UI**: Open your browser and navigate to `http://<YOUR-SERVER-IP>:8000`.
+4. **Access the Web UI & Register**: Open your browser and navigate to `http://<YOUR-SERVER-IP>:8000`.
+   - On the very first load, you will be prompted to **Create Admin Account**. Create your administrator username and password to secure the dashboard.
+   - Once logged in, copy the **Agent Key** displayed in the top header summary bar (you will need this key to configure your client machine agents).
 
 #### Running as a systemd Service (Linux)
 
@@ -128,10 +134,11 @@ To ensure the dashboard server starts automatically at boot, you can use the pro
 Deploy this lightweight agent on every machine you want to monitor:
 
 1. **Copy the `agent/` folder** to the host machine.
-2. **Configure the Server URL**:
-   Open `agent.py` in an editor and change the `SERVER_URL` variable to point to your central server's IP address:
+2. **Configure Server URL & Agent Key**:
+   Open `agent.py` in an editor and update the `SERVER_URL` and `AGENT_KEY` variables to match your central server's credentials:
    ```python
    SERVER_URL = "http://<YOUR-SERVER-IP>:8000/api/report"
+   AGENT_KEY = "your_copied_agent_key_here"
    ```
 3. **Install dependencies and run**:
    - **Linux / NAS**:
