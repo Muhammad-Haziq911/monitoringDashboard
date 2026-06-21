@@ -767,3 +767,14 @@ body {
     color: #fbbf24;
     filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.5));
 }
+
+/* Success Toast alerts (Hysteresis recovery) */
+.toast.success {
+    background: rgba(16, 185, 129, 0.15);
+    border-color: rgba(16, 185, 129, 0.35);
+    color: #ecfdf5;
+}
+
+.toast.success i {
+    color: var(--success);
+}

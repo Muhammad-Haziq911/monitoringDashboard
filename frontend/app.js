@@ -151,11 +151,14 @@ function playAlertChime() {
 }
 
 // Display alert notifications
-function triggerToast(message) {
+function triggerToast(message, type = 'error') {
     const toast = document.createElement('div');
-    toast.className = 'toast';
+    toast.className = `toast ${type}`;
+    
+    const icon = type === 'success' ? 'fa-circle-check' : 'fa-triangle-exclamation';
+    
     toast.innerHTML = `
-        <i class="fa-solid fa-triangle-exclamation"></i>
+        <i class="fa-solid ${icon}"></i>
         <span>${message}</span>
     `;
     toastContainer.appendChild(toast);
@@ -170,43 +173,83 @@ function triggerToast(message) {
     }, 5000);
 }
 
-// Check device metrics against threshold limits
+// Check device metrics against threshold limits (using hysteresis to avoid flappiness)
 function checkAlerts(device) {
-    let hasAlert = false;
-    let alertMsgs = [];
+    if (!device.alerts) {
+        device.alerts = {
+            cpu: false,
+            temp: false,
+            gpuUtil: false,
+            gpuTemp: false
+        };
+    }
     
-    // CPU check
-    if (device.cpu_usage > CPU_ALERT_THRESHOLD) {
-        hasAlert = true;
+    const alertMsgs = [];
+    const recoveryMsgs = [];
+    
+    // CPU thresholds: Trigger 85%, Recover 75%
+    if (!device.alerts.cpu && device.cpu_usage > 85.0) {
+        device.alerts.cpu = true;
         alertMsgs.push(`CPU Load critical: ${device.cpu_usage.toFixed(0)}%`);
+    } else if (device.alerts.cpu && device.cpu_usage < 75.0) {
+        device.alerts.cpu = false;
+        recoveryMsgs.push(`CPU Load recovered: ${device.cpu_usage.toFixed(0)}%`);
     }
-    // Temp check
-    if (device.temp && device.temp > TEMP_ALERT_THRESHOLD) {
-        hasAlert = true;
-        alertMsgs.push(`CPU Temperature hot: ${device.temp.toFixed(1)}°C`);
+    
+    // CPU Temp thresholds: Trigger 80°C, Recover 72°C
+    if (device.temp !== undefined && device.temp !== null) {
+        if (!device.alerts.temp && device.temp > 80.0) {
+            device.alerts.temp = true;
+            alertMsgs.push(`CPU Temperature hot: ${device.temp.toFixed(1)}°C`);
+        } else if (device.alerts.temp && device.temp < 72.0) {
+            device.alerts.temp = false;
+            recoveryMsgs.push(`CPU Temperature recovered: ${device.temp.toFixed(1)}°C`);
+        }
     }
-    // GPU check
+    
+    // GPU thresholds: Trigger 85% utilization / 80°C temp, Recover 75% utilization / 72°C temp
     if (device.gpu) {
-        if (device.gpu.utilization > GPU_UTIL_ALERT_THRESHOLD) {
-            hasAlert = true;
+        if (!device.alerts.gpuUtil && device.gpu.utilization > 85.0) {
+            device.alerts.gpuUtil = true;
             alertMsgs.push(`GPU Load critical: ${device.gpu.utilization.toFixed(0)}%`);
+        } else if (device.alerts.gpuUtil && device.gpu.utilization < 75.0) {
+            device.alerts.gpuUtil = false;
+            recoveryMsgs.push(`GPU Load recovered: ${device.gpu.utilization.toFixed(0)}%`);
         }
-        if (device.gpu.temp > GPU_TEMP_ALERT_THRESHOLD) {
-            hasAlert = true;
+        
+        if (!device.alerts.gpuTemp && device.gpu.temp > 80.0) {
+            device.alerts.gpuTemp = true;
             alertMsgs.push(`GPU Temperature hot: ${device.gpu.temp.toFixed(0)}°C`);
+        } else if (device.alerts.gpuTemp && device.gpu.temp < 72.0) {
+            device.alerts.gpuTemp = false;
+            recoveryMsgs.push(`GPU Temperature recovered: ${device.gpu.temp.toFixed(0)}°C`);
         }
+    } else {
+        device.alerts.gpuUtil = false;
+        device.alerts.gpuTemp = false;
     }
     
     const cardId = `device-${device.hostname.replace(/[^a-zA-Z0-9]/g, '-')}`;
     const card = document.getElementById(cardId);
     if (!card) return;
     
+    const hasAlert = Object.values(device.alerts).some(v => v === true);
+    
     if (hasAlert) {
         card.classList.add('critical-alert');
-        playAlertChime();
-        alertMsgs.forEach(msg => triggerToast(`[${device.hostname}] ${msg}`));
     } else {
         card.classList.remove('critical-alert');
+    }
+    
+    // Show alerts and play sound if new alerts triggered
+    if (alertMsgs.length > 0) {
+        playAlertChime();
+        alertMsgs.forEach(msg => triggerToast(`[${device.hostname}] ${msg}`, 'error'));
+    }
+    
+    // Show recovery messages quietly in green
+    if (recoveryMsgs.length > 0) {
+        recoveryMsgs.forEach(msg => triggerToast(`[${device.hostname}] ${msg}`, 'success'));
     }
 }
 
