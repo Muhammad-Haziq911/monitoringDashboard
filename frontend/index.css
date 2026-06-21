@@ -218,6 +218,22 @@ body {
     box-shadow: 0 15px 35px -5px rgba(0, 242, 254, 0.05), 0 10px 30px -10px rgba(0, 0, 0, 0.4);
 }
 
+/* Critical Alert pulse animation */
+@keyframes critical-glow {
+    0% { box-shadow: 0 0 15px rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3); }
+    50% { box-shadow: 0 0 25px rgba(239, 68, 68, 0.35); border-color: rgba(239, 68, 68, 0.6); }
+    100% { box-shadow: 0 0 15px rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3); }
+}
+
+.device-card.critical-alert {
+    animation: critical-glow 2s infinite ease-in-out;
+    border-color: rgba(239, 68, 68, 0.4);
+}
+
+.device-card.critical-alert::before {
+    background: linear-gradient(90deg, #ef4444 0%, #f43f5e 100%) !important;
+}
+
 /* Device Card Header */
 .device-card-header {
     display: flex;
@@ -358,6 +374,23 @@ body {
 .stat-row.cpu .progress-bar-fill { background: var(--accent-teal); }
 .stat-row.ram .progress-bar-fill { background: var(--accent-purple); }
 .stat-row.disk-item .progress-bar-fill { background: var(--accent-blue); }
+
+/* Custom Canvas Sparkline charts */
+.sparkline-container {
+    height: 38px;
+    margin-top: 0.2rem;
+    background: rgba(255, 255, 255, 0.015);
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+    border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.sparkline-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
 
 /* Multi Disk List */
 .disks-list {
@@ -624,6 +657,46 @@ body {
 .docker-item.stopped .docker-status {
     background: rgba(239, 68, 68, 0.1);
     color: var(--danger);
+}
+
+/* Toast Notifications alert banner wrapper */
+.toast-container {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    z-index: 9999;
+    pointer-events: none;
+}
+
+.toast {
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    color: #fee2e2;
+    padding: 1rem 1.5rem;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.85rem;
+    font-weight: 550;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    transform: translateX(120%);
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: auto;
+}
+
+.toast.show {
+    transform: translateX(0);
+}
+
+.toast i {
+    color: var(--danger);
+    font-size: 1.1rem;
 }
 
 /* Footer */

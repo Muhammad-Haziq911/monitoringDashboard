@@ -4,11 +4,22 @@ const devices = {};
 // SSE Connection
 let eventSource = null;
 
+// Audio Context for alerts
+let audioCtx = null;
+let lastAlertPlayTime = 0;
+
 // DOM Elements
 const dashboardGrid = document.getElementById('dashboard-grid');
 const noDevicesEl = document.getElementById('no-devices');
 const totalNodesEl = document.getElementById('total-nodes');
 const activeNodesEl = document.getElementById('active-nodes');
+const toastContainer = document.getElementById('toast-container');
+
+// Thresholds for Critical Alerts
+const CPU_ALERT_THRESHOLD = 85.0;     // %
+const TEMP_ALERT_THRESHOLD = 80.0;    // °C
+const GPU_UTIL_ALERT_THRESHOLD = 85.0; // %
+const GPU_TEMP_ALERT_THRESHOLD = 80.0; // °C
 
 // Connect to Server-Sent Events stream
 function connectSSE() {
@@ -26,6 +37,10 @@ function connectSSE() {
             for (const key in devices) delete devices[key];
             
             data.forEach(device => {
+                device.cpuHistory = [device.cpu_usage];
+                if (device.gpu) {
+                    device.gpuHistory = [device.gpu.utilization];
+                }
                 devices[device.hostname] = device;
             });
             
@@ -38,10 +53,26 @@ function connectSSE() {
     eventSource.addEventListener('metrics', (event) => {
         try {
             const device = JSON.parse(event.data);
-            console.log('Received metrics update:', device);
+            
+            // Maintain history for graphs
+            if (devices[device.hostname]) {
+                const oldHistory = devices[device.hostname].cpuHistory || [];
+                device.cpuHistory = [...oldHistory, device.cpu_usage].slice(-30);
+                
+                if (device.gpu) {
+                    const oldGpuHistory = devices[device.hostname].gpuHistory || [];
+                    device.gpuHistory = [...oldGpuHistory, device.gpu.utilization].slice(-30);
+                }
+            } else {
+                device.cpuHistory = [device.cpu_usage];
+                if (device.gpu) {
+                    device.gpuHistory = [device.gpu.utilization];
+                }
+            }
             
             devices[device.hostname] = device;
             renderDeviceCard(device);
+            checkAlerts(device);
             updateSummary();
         } catch (err) {
             console.error('Failed to parse metrics event:', err);
@@ -53,6 +84,166 @@ function connectSSE() {
         eventSource.close();
         setTimeout(connectSSE, 3000);
     };
+}
+
+// Synthesize a sci-fi alarm chime using the Web Audio API (zero audio files needed!)
+function playAlertChime() {
+    try {
+        const nowTime = Date.now();
+        // Throttle alert sounds to play at most once every 20 seconds
+        if (nowTime - lastAlertPlayTime < 20000) return;
+        lastAlertPlayTime = nowTime;
+
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+
+        const osc1 = audioCtx.createOscillator();
+        const osc2 = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+
+        osc1.connect(gainNode);
+        osc2.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+
+        // Tech chime profile
+        osc1.type = 'sine';
+        osc1.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
+        osc1.frequency.exponentialRampToValueAtTime(587.33, audioCtx.currentTime + 0.15); // D5 note
+        osc1.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.4); // A4 note
+
+        osc2.type = 'triangle';
+        osc2.frequency.setValueAtTime(440, audioCtx.currentTime);
+        osc2.frequency.setValueAtTime(220, audioCtx.currentTime + 0.15);
+
+        gainNode.gain.setValueAtTime(0.0, audioCtx.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.12, audioCtx.currentTime + 0.05); // Fade in
+        gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.65); // Exp decay
+
+        osc1.start(audioCtx.currentTime);
+        osc2.start(audioCtx.currentTime);
+        osc1.stop(audioCtx.currentTime + 0.7);
+        osc2.stop(audioCtx.currentTime + 0.7);
+    } catch (e) {
+        console.warn("Failed to play Web Audio chime (waiting for user interaction):", e);
+    }
+}
+
+// Display alert notifications
+function triggerToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.innerHTML = `
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <span>${message}</span>
+    `;
+    toastContainer.appendChild(toast);
+    
+    // Trigger slide-in animation
+    setTimeout(() => toast.classList.add('show'), 100);
+    
+    // Dismiss toast after 5 seconds
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 400);
+    }, 5000);
+}
+
+// Check device metrics against threshold limits
+function checkAlerts(device) {
+    let hasAlert = false;
+    let alertMsgs = [];
+    
+    // CPU check
+    if (device.cpu_usage > CPU_ALERT_THRESHOLD) {
+        hasAlert = true;
+        alertMsgs.push(`CPU Load critical: ${device.cpu_usage.toFixed(0)}%`);
+    }
+    // Temp check
+    if (device.temp && device.temp > TEMP_ALERT_THRESHOLD) {
+        hasAlert = true;
+        alertMsgs.push(`CPU Temperature hot: ${device.temp.toFixed(1)}°C`);
+    }
+    // GPU check
+    if (device.gpu) {
+        if (device.gpu.utilization > GPU_UTIL_ALERT_THRESHOLD) {
+            hasAlert = true;
+            alertMsgs.push(`GPU Load critical: ${device.gpu.utilization.toFixed(0)}%`);
+        }
+        if (device.gpu.temp > GPU_TEMP_ALERT_THRESHOLD) {
+            hasAlert = true;
+            alertMsgs.push(`GPU Temperature hot: ${device.gpu.temp.toFixed(0)}°C`);
+        }
+    }
+    
+    const cardId = `device-${device.hostname.replace(/[^a-zA-Z0-9]/g, '-')}`;
+    const card = document.getElementById(cardId);
+    if (!card) return;
+    
+    if (hasAlert) {
+        card.classList.add('critical-alert');
+        playAlertChime();
+        alertMsgs.forEach(msg => triggerToast(`[${device.hostname}] ${msg}`));
+    } else {
+        card.classList.remove('critical-alert');
+    }
+}
+
+// Render dynamic HTML5 canvas sparklines (neon glowing telemetry)
+function drawSparkline(canvas, history, color) {
+    if (!canvas || !history || history.length < 2) return;
+    
+    // Set internal size to match CSS size
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+    
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    
+    ctx.beginPath();
+    ctx.strokeStyle = color || '#00f2fe';
+    ctx.lineWidth = 1.8;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    
+    // Neon shadow glow
+    ctx.shadowColor = color || '#00f2fe';
+    ctx.shadowBlur = 5;
+    
+    const maxPoints = 30;
+    const xStep = w / (maxPoints - 1);
+    const offset = maxPoints - history.length;
+    
+    history.forEach((val, idx) => {
+        const x = (idx + offset) * xStep;
+        // Invert Y axis, leave 2px padding top and bottom
+        const y = h - (val / 100 * (h - 4)) - 2;
+        if (idx === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    
+    // Remove shadow blur for filling area underneath
+    ctx.shadowBlur = 0;
+    
+    // Close the shape to fill the area under the sparkline
+    ctx.lineTo((history.length - 1 + offset) * xStep, h);
+    ctx.lineTo(offset * xStep, h);
+    ctx.closePath();
+    
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    // Convert hex color to rgba for smooth alpha gradient
+    const fillCol = color === '#f43f5e' ? 'rgba(244, 63, 94, 0.12)' : 'rgba(0, 242, 254, 0.12)';
+    grad.addColorStop(0, fillCol);
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = grad;
+    ctx.fill();
 }
 
 // Map hostnames to FontAwesome icons
@@ -252,6 +443,9 @@ function renderDeviceCard(device) {
                         <div class="progress-bar-bg">
                             <div class="progress-bar-fill" style="width: ${gpu.utilization}%"></div>
                         </div>
+                        <div class="sparkline-container">
+                            <canvas class="sparkline-canvas" id="canvas-gpu-${device.hostname.replace(/[^a-zA-Z0-9]/g, '-')}" height="38"></canvas>
+                        </div>
                     </div>
                     
                     <!-- VRAM load -->
@@ -311,7 +505,6 @@ function renderDeviceCard(device) {
             </div>
         `;
     } else if (device.disk) {
-        // Fallback for older agents only sending a single disk object
         const diskPct = ((device.disk.used / device.disk.total) * 100).toFixed(0);
         disksHtml = `
             <div class="disks-list">
@@ -361,7 +554,7 @@ function renderDeviceCard(device) {
         `;
     }
     
-    // Build metadata subtitle (OS & CPU details)
+    // Build metadata subtitle
     const osInfo = device.os_info || 'Unknown OS';
     const cpuModel = device.cpu_model || 'Unknown CPU';
     
@@ -400,6 +593,10 @@ function renderDeviceCard(device) {
                 </div>
                 <div class="progress-bar-bg">
                     <div class="progress-bar-fill" style="width: ${cpuVal}%"></div>
+                </div>
+                <!-- Sparkline Canvas for CPU -->
+                <div class="sparkline-container">
+                    <canvas class="sparkline-canvas" id="canvas-cpu-${device.hostname.replace(/[^a-zA-Z0-9]/g, '-')}" height="38"></canvas>
                 </div>
             </div>
 
@@ -440,6 +637,23 @@ function renderDeviceCard(device) {
         ${vpnHtml}
         ${dockerHtml}
     `;
+    
+    // Draw sparklines after DOM content update has finished
+    requestAnimationFrame(() => {
+        const cpuCanvas = document.getElementById(`canvas-cpu-${device.hostname.replace(/[^a-zA-Z0-9]/g, '-')}`);
+        if (cpuCanvas && device.cpuHistory) {
+            // Draw CPU sparkline in cyan
+            drawSparkline(cpuCanvas, device.cpuHistory, '#00f2fe');
+        }
+        
+        if (device.gpu) {
+            const gpuCanvas = document.getElementById(`canvas-gpu-${device.hostname.replace(/[^a-zA-Z0-9]/g, '-')}`);
+            if (gpuCanvas && device.gpuHistory) {
+                // Draw GPU sparkline in pink
+                drawSparkline(gpuCanvas, device.gpuHistory, '#f43f5e');
+            }
+        }
+    });
 }
 
 // Format uptime in seconds to human readable format
@@ -486,3 +700,9 @@ setInterval(() => {
 }, 5000);
 
 window.addEventListener('DOMContentLoaded', connectSSE);
+window.addEventListener('click', () => {
+    // Resume audio context on user interaction if blocked by browser autoplay policy
+    if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+});
