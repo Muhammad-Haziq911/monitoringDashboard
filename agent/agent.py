@@ -10,7 +10,7 @@ import psutil
 
 # Configuration
 SERVER_URL = "http://192.168.1.106:8000/api/report"  # Adjust to your dashboard server IP in production
-AGENT_KEY = "your_secret_key_here"  # Put your generated server Agent Key here
+AGENT_KEY = "3e809ca82bd1b490df35696e25314821"  # Put your generated server Agent Key here
 INTERVAL = 5  # Reporting interval in seconds
 
 # Prevent console window popping up/stealing focus when spawning subprocesses on Windows
@@ -198,7 +198,7 @@ def get_cpu_power():
         except Exception:
             pass
     elif sys_name == "Linux":
-        # Query Linux RAPL package 0 energy counter (Intel/AMD)
+        # 1. Query Linux RAPL package 0 energy counter (Intel/AMD)
         try:
             path = "/sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj"
             if os.path.exists(path):
@@ -214,8 +214,6 @@ def get_cpu_power():
                 dt = now - state.last_rapl_time
                 power = 0.0
                 if dt > 0:
-                    # energy difference (microjoules) / time difference (seconds) = microwatts
-                    # Divide by 1e6 to convert microwatts to Watts
                     power = (energy - state.last_rapl_energy) / (dt * 1000000.0)
                     
                 state.last_rapl_energy = energy
@@ -226,6 +224,67 @@ def get_cpu_power():
                     return power
         except Exception:
             pass
+
+        # 2. Try sysfs hwmon files (readable without root and supports drivers like fam15h_power, zenpower, coretemp)
+        try:
+            import glob
+            for hwmon_dir in glob.glob("/sys/class/hwmon/hwmon*"):
+                name_path = os.path.join(hwmon_dir, "name")
+                if os.path.exists(name_path):
+                    with open(name_path, "r") as nf:
+                        hwmon_name = nf.read().strip().lower()
+                    # Skip non-CPU monitors (GPUs, NVME drives, etc.)
+                    if any(x in hwmon_name for x in ["gpu", "amdgpu", "nouveau", "nvidia", "nvme"]):
+                        continue
+                    
+                    for power_file in glob.glob(os.path.join(hwmon_dir, "power*_input")):
+                        label_path = power_file.replace("_input", "_label")
+                        if os.path.exists(label_path):
+                            with open(label_path, "r") as lf:
+                                label = lf.read().strip().lower()
+                            if any(x in label for x in ["pkg", "package", "cpu"]):
+                                with open(power_file, "r") as pf:
+                                    val = float(pf.read().strip())
+                                    return val / 1000000.0
+                                    
+                        if hwmon_name in ["fam15h_power", "zenpower", "coretemp", "intel_rapl"]:
+                            with open(power_file, "r") as pf:
+                                val = float(pf.read().strip())
+                                if val > 0:
+                                    return val / 1000000.0
+        except Exception:
+            pass
+            
+    return None
+
+def estimate_cpu_power(cpu_model, cpu_usage):
+    """Estimate CPU power draw based on CPU model and usage when no hardware sensors exist."""
+    if not cpu_model:
+        return None
+        
+    model = cpu_model.lower()
+    
+    # AMD GX-412TC SOC (PC Engines APU2)
+    # TDP is 6W. Idle draw is ~3.5W, max load is ~6W.
+    if "gx-412tc" in model:
+        idle_w = 3.5
+        max_w = 6.0
+        return idle_w + (max_w - idle_w) * (cpu_usage / 100.0)
+        
+    # AMD R-Series RX-421BD (Merlin Falcon NAS SoC)
+    # TDP is configurable 12W - 35W (typically 15W or 35W).
+    # Assuming standard 15W mode. Idle is ~6W, max is ~15W.
+    if "rx-421bd" in model:
+        idle_w = 6.0
+        max_w = 15.0
+        return idle_w + (max_w - idle_w) * (cpu_usage / 100.0)
+
+    # Other AMD G-Series or GX Embedded CPUs
+    if "gx-" in model or "g-series" in model:
+        idle_w = 4.0
+        max_w = 15.0
+        return idle_w + (max_w - idle_w) * (cpu_usage / 100.0)
+        
     return None
 
 def get_disk_status():
@@ -406,6 +465,8 @@ def gather_metrics():
     # Temp and power
     temp = get_temperature()
     cpu_power = get_cpu_power()
+    if cpu_power is None:
+        cpu_power = estimate_cpu_power(cpu_model, cpu_usage)
     
     # GPU (RTX / Nvidia)
     gpu = get_gpu_status()
