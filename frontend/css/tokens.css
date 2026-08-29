@@ -1,0 +1,119 @@
+/* ==========================================================================
+   Design tokens — single source of truth for colour, type, space and motion.
+   Every value used anywhere in the UI is declared here. Nothing downstream
+   should hardcode a colour or a pixel size.
+   ========================================================================== */
+
+:root {
+    color-scheme: dark;
+
+    /* --- Surfaces ------------------------------------------------------- */
+    --bg:              #0a0a0d;
+    --bg-subtle:       #0d0d11;
+    --surface-1:       #111116;
+    --surface-2:       #17171e;
+    --surface-3:       #1e1e27;
+    --surface-hover:   #1b1b23;
+    --surface-inset:   rgba(255, 255, 255, 0.028);
+
+    /* --- Borders -------------------------------------------------------- */
+    --border:          #24242e;
+    --border-strong:   #32323f;
+    --border-subtle:   rgba(255, 255, 255, 0.05);
+
+    /* --- Foreground ----------------------------------------------------- */
+    --fg:              #e8e8ed;
+    --fg-muted:        #9b9baa;
+    --fg-subtle:       #6a6a7a;
+    --fg-faint:        #4a4a58;
+
+    /* --- Accent (never used for status, so the two never compete) -------- */
+    --accent:          #6366f1;
+    --accent-hover:    #818cf8;
+    --accent-quiet:    rgba(99, 102, 241, 0.12);
+    --accent-line:     rgba(99, 102, 241, 0.34);
+
+    /* --- Status --------------------------------------------------------- */
+    --ok:              #3fb950;
+    --ok-quiet:        rgba(63, 185, 80, 0.12);
+    --ok-line:         rgba(63, 185, 80, 0.28);
+
+    --warn:            #d29922;
+    --warn-quiet:      rgba(210, 153, 34, 0.12);
+    --warn-line:       rgba(210, 153, 34, 0.28);
+
+    --crit:            #f85149;
+    --crit-quiet:      rgba(248, 81, 73, 0.12);
+    --crit-line:       rgba(248, 81, 73, 0.3);
+
+    --off:             #5a5a68;
+    --off-quiet:       rgba(90, 90, 104, 0.14);
+    --off-line:        rgba(90, 90, 104, 0.26);
+
+    /* --- Metric hues (charts, meters) ----------------------------------- */
+    --m-cpu:           #58a6ff;
+    --m-ram:           #a371f7;
+    --m-gpu:           #ec6cb9;
+    --m-vram:          #a371f7;
+    --m-disk:          #56d4dd;
+    --m-power:         #e3b341;
+    --m-down:          #56d4dd;
+    --m-up:            #a371f7;
+
+    /* --- Typography ----------------------------------------------------- */
+    --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+               Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas,
+                 'Liberation Mono', monospace;
+
+    --t-10:  0.625rem;
+    --t-11:  0.6875rem;
+    --t-12:  0.75rem;
+    --t-13:  0.8125rem;
+    --t-14:  0.875rem;
+    --t-16:  1rem;
+    --t-20:  1.25rem;
+    --t-24:  1.5rem;
+    --t-30:  1.875rem;
+
+    /* --- Space (4px base) ----------------------------------------------- */
+    --s-1:   4px;
+    --s-2:   8px;
+    --s-3:   12px;
+    --s-4:   16px;
+    --s-5:   20px;
+    --s-6:   24px;
+    --s-8:   32px;
+    --s-10:  40px;
+    --s-12:  48px;
+
+    /* --- Radius --------------------------------------------------------- */
+    --r-sm:   6px;
+    --r-md:   8px;
+    --r-lg:  12px;
+    --r-xl:  16px;
+    --r-full: 999px;
+
+    /* --- Elevation ------------------------------------------------------ */
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.35);
+    --shadow-lg: -24px 0 60px rgba(0, 0, 0, 0.55);
+
+    /* --- Motion --------------------------------------------------------- */
+    --dur-fast: 120ms;
+    --dur:      180ms;
+    --dur-slow: 400ms;
+    --ease:     cubic-bezier(0.2, 0, 0, 1);
+
+    /* --- Layout --------------------------------------------------------- */
+    --topbar-h:    56px;
+    --content-max: 1560px;
+    --gutter:      32px;
+    --drawer-w:    460px;
+}
+
+@media (max-width: 900px) {
+    :root {
+        --gutter: 16px;
+    }
+}

@@ -1,120 +1,166 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Home Lab Dashboard</title>
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- FontAwesome for Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Custom CSS -->
-    <link rel="stylesheet" href="index.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0a0a0d">
+<title>Devices · HomeLab</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/components.css">
 </head>
 <body>
-    <div class="bg-glow"></div>
-    <div class="bg-glow bg-glow-secondary"></div>
-    
-    <header class="app-header">
-        <div class="logo">
-            <i class="fa-solid fa-server logo-icon"></i>
-            <h1>HomeLab<span>Dashboard</span></h1>
-        </div>
-        <nav class="app-nav">
-            <a href="index.html" class="nav-link active"><i class="fa-solid fa-desktop"></i> Devices</a>
-            <a href="services.html" class="nav-link"><i class="fa-solid fa-circle-nodes"></i> Services</a>
-            <button id="logout-btn" class="nav-logout-btn" title="Sign Out"><i class="fa-solid fa-right-from-bracket"></i></button>
+
+<header class="topbar">
+    <div class="topbar__inner shell">
+        <a class="brand" href="index.html">
+            <span class="brand__mark"><i class="fa-solid fa-server"></i></span>
+            <span class="brand__name">HomeLab <span>Monitor</span></span>
+        </a>
+
+        <nav class="nav" aria-label="Sections">
+            <a class="nav__link is-active" href="index.html"><i class="fa-solid fa-microchip"></i><span>Devices</span></a>
+            <a class="nav__link" href="services.html"><i class="fa-solid fa-circle-nodes"></i><span>Services</span></a>
         </nav>
-        <div class="sys-summary">
-            <div class="summary-item" id="agent-key-container" title="Click to copy Agent Auth Key" style="display: none;">
-                <span class="label">Agent Key</span>
-                <span class="value" id="agent-key-val" style="color: var(--accent-teal); cursor: pointer; font-family: monospace; font-size: 0.8rem;">------</span>
-            </div>
-            <div class="summary-item">
-                <span class="label">Total Nodes</span>
-                <span class="value" id="total-nodes">0</span>
-            </div>
-            <div class="summary-item">
-                <span class="label">Active Nodes</span>
-                <span class="value text-success" id="active-nodes">0</span>
-            </div>
-            <div class="summary-item" id="total-power-container">
-                <span class="label">Lab Power</span>
-                <span class="value" id="total-power" style="color: #fbbf24; text-shadow: 0 0 8px rgba(251, 191, 36, 0.2);">0W</span>
-            </div>
-            <div class="summary-item" id="total-cost-container" title="Based on 29 cents per kWh Synergy rate">
-                <span class="label">Est. Cost</span>
-                <span class="value" id="total-cost" style="color: #10b981; text-shadow: 0 0 8px rgba(16, 185, 129, 0.2);">$0.00/mo</span>
-            </div>
-        </div>
-    </header>
 
-    <div class="power-trend-section">
-        <div class="power-trend-card">
-            <div class="power-trend-header">
-                <div class="trend-title-group">
-                    <h3><i class="fa-solid fa-chart-line"></i> Lab Power Trend</h3>
-                    <span class="power-trend-subtitle" id="power-trend-subtitle">Last 6 Hours</span>
-                </div>
-                <div class="range-selector">
-                    <button class="range-btn active" data-range="6h">6H</button>
-                    <button class="range-btn" data-range="24h">24H</button>
-                    <button class="range-btn" data-range="7d">7D</button>
-                    <button class="range-btn" data-range="30d">30D</button>
-                </div>
+        <div class="topbar__right">
+            <button class="key-chip" id="agent-key" type="button" title="Copy the agent auth key" hidden>
+                <i class="fa-solid fa-key"></i>
+                <span class="key-chip__value" id="agent-key-value">——</span>
+            </button>
+            <div class="link-state" id="link-state" data-state="idle">
+                <span class="link-state__dot"></span><span class="link-state__label">Connecting</span>
             </div>
-            <div class="power-trend-body">
-                <canvas id="power-trend-canvas"></canvas>
-            </div>
+            <button class="icon-btn icon-btn--danger" id="logout-btn" type="button" title="Sign out" aria-label="Sign out">
+                <i class="fa-solid fa-right-from-bracket"></i>
+            </button>
+        </div>
+    </div>
+</header>
+
+<main class="shell">
+    <div class="page-head">
+        <div>
+            <h1 class="page-head__title">Devices</h1>
+            <p class="page-head__sub">Live telemetry pushed by each agent every 5 seconds.</p>
         </div>
     </div>
 
-    <main class="dashboard-grid" id="dashboard-grid">
-        <!-- Devices will be dynamically rendered here -->
-        <div class="no-devices" id="no-devices">
-            <i class="fa-solid fa-satellite-dish pulse-icon"></i>
-            <p>Waiting for clients to push metrics...</p>
-            <p class="subtext">Make sure the agent script is running on your monitored machines.</p>
+    <div class="fleet">
+        <div class="stat" id="stat-nodes-card">
+            <span class="stat__label eyebrow"><i class="fa-solid fa-signal"></i>Nodes online</span>
+            <div class="stat__value" id="stat-nodes">0<small> / 0</small></div>
+            <div class="stat__foot" id="stat-nodes-foot">Waiting for agents</div>
         </div>
-    </main>
-
-    <footer class="app-footer">
-        <p>HomeLab Dashboard &bull; Real-time updates active</p>
-    </footer>
-
-    <!-- Live Alerts Toasts -->
-    <div class="toast-container" id="toast-container"></div>
-
-    <!-- Authentication Overlay -->
-    <div id="auth-overlay" class="auth-overlay" style="display: none;">
-        <div class="auth-card">
-            <div class="auth-card-header">
-                <div class="auth-logo-box">
-                    <i class="fa-solid fa-lock auth-logo"></i>
-                </div>
-                <h2 id="auth-title">Dashboard Login</h2>
-                <p id="auth-subtitle">Please enter your credentials to access the lab monitor.</p>
-            </div>
-            <form id="auth-form">
-                <div class="input-group">
-                    <label for="auth-username"><i class="fa-solid fa-user"></i> Username</label>
-                    <input type="text" id="auth-username" required placeholder="e.g. admin">
-                </div>
-                <div class="input-group">
-                    <label for="auth-password"><i class="fa-solid fa-key"></i> Password</label>
-                    <input type="password" id="auth-password" required placeholder="••••••••">
-                </div>
-                <div id="auth-error-msg" class="auth-error-msg"></div>
-                <button type="submit" id="auth-submit-btn" class="auth-btn">
-                    <span>Sign In</span> <i class="fa-solid fa-arrow-right-to-bracket"></i>
-                </button>
-            </form>
+        <div class="stat" id="stat-alerts-card">
+            <span class="stat__label eyebrow"><i class="fa-solid fa-triangle-exclamation"></i>Alerts</span>
+            <div class="stat__value" id="stat-alerts">0</div>
+            <div class="stat__foot" id="stat-alerts-foot">Within thresholds</div>
+        </div>
+        <div class="stat" data-tone="power">
+            <span class="stat__label eyebrow"><i class="fa-solid fa-bolt"></i>Lab power</span>
+            <div class="stat__value" id="stat-power">0<small> W</small></div>
+            <div class="stat__foot" id="stat-power-foot">0 nodes drawing</div>
+        </div>
+        <div class="stat">
+            <span class="stat__label eyebrow"><i class="fa-solid fa-receipt"></i>Running cost</span>
+            <div class="stat__value" id="stat-cost">$0.00</div>
+            <div class="stat__foot" id="stat-cost-foot">per month</div>
+        </div>
+        <div class="stat" id="stat-updates-card">
+            <span class="stat__label eyebrow"><i class="fa-solid fa-circle-arrow-up"></i>Pending updates</span>
+            <div class="stat__value" id="stat-updates">0</div>
+            <div class="stat__foot" id="stat-updates-foot">Everything current</div>
         </div>
     </div>
 
-    <!-- App Logic -->
-    <script src="app.js"></script>
+    <section class="panel trend">
+        <div class="panel__head">
+            <div>
+                <div class="panel__title">Power draw</div>
+                <div class="panel__sub" id="trend-sub">Last 6 hours</div>
+            </div>
+            <div class="segmented" id="range-selector">
+                <button type="button" class="is-active" data-range="6h">6H</button>
+                <button type="button" data-range="24h">24H</button>
+                <button type="button" data-range="7d">7D</button>
+                <button type="button" data-range="30d">30D</button>
+            </div>
+        </div>
+        <div class="trend__body">
+            <canvas class="trend__canvas" id="trend-canvas"></canvas>
+            <div class="trend__tip" id="trend-tip"></div>
+        </div>
+    </section>
+
+    <div class="node-grid" id="node-grid">
+        <div class="empty" id="node-empty">
+            <span class="empty__icon"><i class="fa-solid fa-satellite-dish"></i></span>
+            <p class="empty__title">No agents reporting yet</p>
+            <p class="empty__sub">Start <code>agent.py</code> on a machine with the server URL and agent key set, and it will appear here within a few seconds.</p>
+        </div>
+    </div>
+</main>
+
+<footer class="foot">
+    <div class="foot__inner shell">
+        <span>HomeLab Monitor</span>
+        <span>Push-based metrics over server-sent events</span>
+    </div>
+</footer>
+
+<!-- Node detail drawer -->
+<aside class="drawer" id="drawer" aria-hidden="true" aria-label="Node details">
+    <div class="drawer__scrim"></div>
+    <div class="drawer__panel" role="dialog" aria-modal="true">
+        <header class="drawer__head">
+            <div class="drawer__title">
+                <h2 id="drawer-name">Node</h2>
+                <p id="drawer-sub"></p>
+            </div>
+            <span class="status" id="drawer-status" data-state="offline">
+                <i class="status__dot"></i><span>Offline</span>
+            </span>
+            <button class="icon-btn" id="drawer-close" type="button" title="Close" aria-label="Close details">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </header>
+        <div class="drawer__body" id="drawer-body"></div>
+    </div>
+</aside>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<!-- Sign in / first-run registration -->
+<div class="auth" id="auth">
+    <div class="auth__card">
+        <div class="auth__mark"><i class="fa-solid fa-server"></i></div>
+        <h1 class="auth__title" id="auth-title">Sign in</h1>
+        <p class="auth__sub" id="auth-sub">Enter your credentials to reach the lab monitor.</p>
+        <form class="auth__form" id="auth-form">
+            <div class="field">
+                <label for="auth-username">Username</label>
+                <input type="text" id="auth-username" autocomplete="username" required placeholder="admin">
+            </div>
+            <div class="field">
+                <label for="auth-password">Password</label>
+                <input type="password" id="auth-password" autocomplete="current-password" required placeholder="••••••••">
+            </div>
+            <p class="auth__error" id="auth-error"></p>
+            <button type="submit" class="btn" id="auth-submit">
+                <span>Sign in</span><i class="fa-solid fa-arrow-right"></i>
+            </button>
+        </form>
+    </div>
+</div>
+
+<script type="module" src="js/devices.js"></script>
 </body>
 </html>
