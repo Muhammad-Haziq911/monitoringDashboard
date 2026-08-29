@@ -7,7 +7,7 @@ A premium, lightweight, real-time home lab monitoring dashboard designed specifi
 ## ✨ Features
 
 - **🌐 Real-Time Updates**: Leverages Server-Sent Events (SSE) for instant, low-overhead updates to your browser without polling.
-- **🎨 Premium UI**: A modern, responsive dark-mode dashboard styled with glassmorphism, glowing accents, and dynamic animations.
+- **🎨 Modern UI**: A responsive dark dashboard built on a token-driven design system. Uniform node cards give an at-a-glance read of the fleet, and any node opens a detail drawer with its GPU, storage, network and container breakdown.
 - **🔒 Admin Authentication**: Password-protected access using industry-standard PBKDF2-SHA256 password hashing. Features a secure first-run setup overlay for creating the administrator account, blocking any unauthenticated requests.
 - **🔑 Agent API Security**: Secures metrics reporting by validating a unique `X-Agent-Key` header on ingestion, preventing unauthorized endpoints from submitting fake telemetry.
 - **📊 30-Day SQLite History**: Power history is persisted locally in `backend/history.db` on your SSD. Features time-range buttons on the UI (`6H`, `24H`, `7D`, `30D`) and SQL-level downsampling for ultra-fast load times.
@@ -35,7 +35,7 @@ The dashboard uses a **Push-based model** that operates smoothly behind NATs, fi
 
 1. **`agent/` (Python client)**: Runs on monitored hosts and POSTs local metrics, drive speeds, and power draw to the dashboard server every 5 seconds.
 2. **`backend/` (FastAPI server)**: Runs on the central dashboard server, sweeps active node pings, stores client states in-memory, and broadcasts updates to open dashboards.
-3. **`frontend/` (Vanilla Web UI)**: Static HTML, CSS, and JS served by the backend. Features custom canvas line charts. No compilation or node build pipelines are required.
+3. **`frontend/` (Vanilla Web UI)**: Static HTML, CSS, and ES modules served by the backend. Features custom canvas line charts. No compilation or node build pipelines are required.
 
 ```mermaid
 sequenceDiagram
@@ -69,9 +69,24 @@ sequenceDiagram
 │   ├── homelab-dashboard.service # Systemd service template for APU/Server
 │   └── requirements.txt    # Server dependencies (fastapi, uvicorn)
 ├── frontend/
-│   ├── index.html          # Dashboard page structure
-│   ├── index.css           # Premium glassmorphic styles
-│   └── app.js              # Real-time SSE handler & DOM controller
+│   ├── index.html          # Devices page
+│   ├── services.html       # Services page
+│   ├── css/
+│   │   ├── tokens.css      # Design tokens: colour, type, space, motion
+│   │   ├── base.css        # Reset, typography, utilities
+│   │   ├── layout.css      # Shell, topbar, fleet strip, grids
+│   │   └── components.css  # Cards, meters, drawer, toasts, auth
+│   └── js/
+│       ├── config.js       # Thresholds, tariff, offline window
+│       ├── format.js       # Value formatting, escaping, tone helpers
+│       ├── api.js          # Token storage & authenticated fetch
+│       ├── auth.js         # Sign-in / first-run registration
+│       ├── shell.js        # Shared topbar wiring
+│       ├── stream.js       # SSE client with backoff
+│       ├── charts.js       # Canvas sparklines & power trend
+│       ├── toast.js        # Alert notifications & alarm chime
+│       ├── devices.js      # Devices page controller
+│       └── services-page.js # Services page controller
 └── .gitignore              # Files ignored in repository
 ```
 
@@ -212,16 +227,16 @@ To ensure the agent runs silently in the background on your Windows gaming machi
 
 ## 🛠️ Customization
 
-- **Icons**: The dashboard auto-maps hostnames to icons in `frontend/app.js`. If you have a specific machine type, update the `getDeviceIcon` function:
+- **Icons**: The dashboard auto-maps hostnames to icons in `frontend/js/format.js`. To add a machine type, extend the table in `deviceIcon`:
   ```javascript
-  function getDeviceIcon(hostname) {
-      const name = hostname.toLowerCase();
-      if (name.includes('gaming')) return 'fa-solid fa-desktop';
-      if (name.includes('nas')) return 'fa-solid fa-database';
-      return 'fa-solid fa-server';
-  }
+  const table = [
+      [/gaming|desktop|\bpc\b|rig|workstation/, 'fa-desktop'],
+      [/nas|storage|vault|backup/,              'fa-hard-drive'],
+      // add your own pattern here
+  ];
   ```
-- **Styling**: All colors, blur values, and animations are defined using CSS variables in the `:root` block of `frontend/index.css`. You can customize them to match your setup's color theme.
+- **Styling**: Every colour, size, radius and timing is a CSS custom property in the `:root` block of `frontend/css/tokens.css`. Change a token there and it propagates through both pages — no other file hardcodes a colour.
+- **Thresholds & tariff**: Alert trip/recovery points, the meter warning bands, the offline window and the `$/kWh` rate all live in `frontend/js/config.js`.
 
 ---
 
