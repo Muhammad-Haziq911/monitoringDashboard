@@ -14,22 +14,22 @@ The HomeLab Dashboard Agent (`agent/agent.py`) is a lightweight, portable Python
 ```mermaid
 graph TD
     subgraph "agent.py Main Loop (5s Interval)"
-        IP[get_ip]
-        OS[get_os_info]
-        CPU[get_cpu_model + psutil.cpu_percent]
-        MEM[psutil.virtual_memory]
-        DISK[get_disk_status + get_disk_speeds]
-        NET[get_network_speeds]
-        SENS[get_temperature + get_cpu_power]
-        GPU[get_gpu_status - nvidia-smi]
-        VPN[get_vpn_status]
-        DOCK[get_docker_containers]
-        UPD[query_pending_updates - 4h async]
+        IP["get_ip"]
+        OS["get_os_info"]
+        CPU["get_cpu_model + psutil.cpu_percent"]
+        MEM["psutil.virtual_memory"]
+        DISK["get_disk_status + get_disk_speeds"]
+        NET["get_network_speeds"]
+        SENS["get_temperature + get_cpu_power"]
+        GPU["get_gpu_status (nvidia-smi)"]
+        VPN["get_vpn_status"]
+        DOCK["get_docker_containers"]
+        UPD["query_pending_updates (4h async)"]
     end
 
     subgraph "Data Compilation & Delivery"
-        PAYLOAD[JSON Metrics Payload]
-        SEND[urllib POST /api/report<br/>Header: X-Agent-Key]
+        PAYLOAD["JSON Metrics Payload"]
+        SEND["urllib POST /api/report<br/>Header: X-Agent-Key"]
     end
 
     IP --> PAYLOAD
@@ -66,29 +66,29 @@ The agent implements a multi-tier hardware power detection strategy:
 
 ```mermaid
 flowchart TD
-    Start([Query CPU Power]) --> IsWin{OS == Windows?}
+    Start(["Query CPU Power"]) --> IsWin{"OS is Windows?"}
     
-    IsWin -- Yes --> WinPerf[Query Energy Meter PerfCounter<br/><code>\Energy Meter(*_pkg)\Power</code>]
-    WinPerf --> WinValid{Valid reading?}
-    WinValid -- Yes --> ReturnW([Return Watts])
+    IsWin -- Yes --> WinPerf["Query Windows Energy Meter Counter<br/>Energy Meter (*_pkg) Power"]
+    WinPerf --> WinValid{"Valid reading?"}
+    WinValid -- Yes --> ReturnW(["Return Watts"])
     WinValid -- No --> FallbackTDP
     
-    IsWin -- No --> LinuxRAPL{RAPL file exists?<br/><code>/sys/class/powercap/.../energy_uj</code>}
-    LinuxRAPL -- Yes --> CalcRAPL[Calculate dE / dt in Watts]
-    CalcRAPL --> RAPLValid{0 <= W <= 500?}
+    IsWin -- No --> LinuxRAPL{"RAPL sysfs file exists?<br/>/sys/class/powercap/.../energy_uj"}
+    LinuxRAPL -- Yes --> CalcRAPL["Calculate dE / dt in Watts"]
+    CalcRAPL --> RAPLValid{"Power between 0W and 500W?"}
     RAPLValid -- Yes --> ReturnW
     RAPLValid -- No --> LinuxHwmon
     LinuxRAPL -- No --> LinuxHwmon
     
-    LinuxHwmon{Linux hwmon sensor exists?<br/>fam15h_power / zenpower / coretemp}
-    LinuxHwmon -- Yes --> ReadHwmon[Read micro-watts / 1e6]
+    LinuxHwmon{"Linux hwmon sensor exists?<br/>fam15h_power / zenpower / coretemp"}
+    LinuxHwmon -- Yes --> ReadHwmon["Read micro-watts / 1e6"]
     ReadHwmon --> ReturnW
     LinuxHwmon -- No --> FallbackTDP
     
-    FallbackTDP{CPU Model in TDP DB?<br/>GX-412TC / RX-421BD}
-    FallbackTDP -- Yes --> MathModel[Compute idle_w + load * delta_w]
+    FallbackTDP{"CPU Model in TDP DB?<br/>GX-412TC / RX-421BD"}
+    FallbackTDP -- Yes --> MathModel["Compute idle_w + load * delta_w"]
     MathModel --> ReturnW
-    FallbackTDP -- No --> ReturnNull([Return None])
+    FallbackTDP -- No --> ReturnNull(["Return None"])
 ```
 
 #### 1. Linux Running Energy RAPL (Running Average Power Limit)
