@@ -17,20 +17,20 @@ The HomeLab Dashboard is designed specifically for resource-constrained, low-pow
 ```mermaid
 graph TD
     subgraph "Monitored Client Nodes"
-        A1["Linux Server / NAS<br/><code>agent.py</code> (systemd)"]
-        A2["Windows Gaming Rig<br/><code>agent.py</code> (Task Scheduler)"]
-        A3["macOS / Arm Device<br/><code>agent.py</code>"]
+        A1["Linux Server / NAS<br/>agent.py (systemd)"]
+        A2["Windows Gaming Rig<br/>agent.py (Task Scheduler)"]
+        A3["macOS / Arm Device<br/>agent.py"]
     end
 
     subgraph "Central Dashboard Server (FastAPI)"
-        API["REST API<br/><code>/api/report</code><br/><code>/api/devices</code><br/><code>/api/power-history</code>"]
-        AUTH["Security & Auth<br/>PBKDF2-SHA256<br/><code>X-Agent-Key</code> Verification"]
-        MEM["In-Memory Cache<br/><code>devices: Dict[str, dict]</code><br/><code>power_history: List[dict]</code>"]
-        DB[(SQLite <code>history.db</code><br/><code>power_log</code>, <code>users</code><br/><code>sessions</code>, <code>settings</code>)]
+        API["REST API<br/>/api/report<br/>/api/devices<br/>/api/power-history"]
+        AUTH["Security & Auth<br/>PBKDF2-SHA256<br/>X-Agent-Key Verification"]
+        MEM["In-Memory Cache<br/>devices: Dict[str, dict]<br/>power_history: List[dict]"]
+        DB[("SQLite history.db<br/>power_log, users<br/>sessions, settings")]
         PING_BG["Background Ping Sweeper<br/>(Every 10s ICMP)"]
         SVC_BG["Service Health Worker<br/>(Every 30s HTTP Probe)"]
         PWR_BG["Power Aggregator<br/>(Every 60s DB Logger)"]
-        SSE["SSE Event Broadcaster<br/><code>/api/stream</code>"]
+        SSE["SSE Event Broadcaster<br/>/api/stream"]
     end
 
     subgraph "Web Clients (Browsers)"

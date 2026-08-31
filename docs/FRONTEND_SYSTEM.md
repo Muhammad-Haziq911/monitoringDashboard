@@ -73,10 +73,10 @@ To prevent notification flapping when a metric rapidly oscillates around an aler
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Normal: Initial State (< 85%)
-    Normal --> Tripped: Metric exceeds trip threshold (> 85%)\n(Chime sound + Red Toast)
-    Tripped --> Tripped: Fluctuates between 75% and 85%\n(Maintains alerting state)
-    Tripped --> Normal: Drops below clear threshold (< 75%)\n(Green Recovery Toast)
+    [*] --> Normal
+    Normal --> Tripped: Metric exceeds trip point (above 85%) - Chime & Red Alert
+    Tripped --> Tripped: Metric hovers between 75% and 85% - Alert persists
+    Tripped --> Normal: Metric drops below clear point (under 75%) - Green Recovery
 ```
 
 - **Configured Thresholds (`config.js`)**:
