@@ -1,57 +1,74 @@
-# 🖥️ HomeLab Dashboard
+# 🖥️ HomeLab Dashboard & Monitoring Fleet
 
-A premium, lightweight, real-time home lab monitoring dashboard designed specifically for low-power servers. It collects and displays status, system metrics, GPU usage, multi-disk storage, live bandwidth speeds, active VPNs, and Docker container states across multiple machines using a **Push-based** model and **Server-Sent Events (SSE)**.
+A lightweight, real-time homelab monitoring suite designed specifically for resource-constrained microservers, low-power appliances (such as PC Engines APU2, Intel NUCs, Raspberry Pis), NAS systems, and workstations.
 
----
-
-## ✨ Features
-
-- **🌐 Real-Time Updates**: Leverages Server-Sent Events (SSE) for instant, low-overhead updates to your browser without polling.
-- **🎨 Modern UI**: A responsive dark dashboard built on a token-driven design system. Uniform node cards give an at-a-glance read of the fleet, and any node opens a detail drawer with its GPU, storage, network and container breakdown.
-- **🔒 Admin Authentication**: Password-protected access using industry-standard PBKDF2-SHA256 password hashing. Features a secure first-run setup overlay for creating the administrator account, blocking any unauthenticated requests.
-- **🔑 Agent API Security**: Secures metrics reporting by validating a unique `X-Agent-Key` header on ingestion, preventing unauthorized endpoints from submitting fake telemetry.
-- **📊 30-Day SQLite History**: Power history is persisted locally in `backend/history.db` on your SSD. Features time-range buttons on the UI (`6H`, `24H`, `7D`, `30D`) and SQL-level downsampling for ultra-fast load times.
-- **🔄 Pending OS Updates**: Automatically checks for pending OS/software updates (asynchronously in a background thread once every 4 hours to prevent network blocking). Displays a glowing, pulsing warning badge next to the online status of the client card.
-- **🖥️ Hardware Telemetry**:
-  - **CPU & RAM**: Live utilization tracking, marketing name retrieval, and core count display.
-  - **Power Draw (Wattage)**: Real-time CPU and GPU wattage tracking, plus estimated monthly electricity costs based on run-time.
-  - **Multi-Disk Storage**: Automatically scans all active storage partitions with individual capacity bars and live read/write I/O speed throughput.
-  - **Live Bandwidth**: Displays real-time download and upload transfer rates.
-  - **NVIDIA GPU Monitor**: Auto-detects NVIDIA cards and displays model name, utilization, VRAM usage, power draw, and GPU temperature.
-- **📡 Latency Ping Sweep**: The dashboard server runs a background sweep to ping active node IPs and display round-trip latency (color-coded by speed).
-- **🔒 VPN Status**: Checks active network interfaces to display the state of your **Tailscale** and **OpenVPN** connections.
-- **🐳 Docker Containers**: Lists all local containers on each host with their current state (running/stopped).
-- **📌 Favorites Pinning**: Pin your most important servers to the top of the grid. Pin preferences are stored in the browser's `localStorage` for zero-server-overhead persistence.
-- **🔔 Alarm Chimes & Alert Hysteresis**: 
-  - Synthesizes sci-fi alarm sounds (via browser Web Audio API) and slides in critical warning alerts when CPU/GPU load or temperature exceed limits.
-  - Features dual-threshold **hysteresis** (e.g. triggers at 85%, recovers at 75%) to prevent flapping alert notifications when utilization fluctuates.
-  - Displays green success alerts when critical systems recover.
+It combines an outbound **push-based telemetry model** with real-time **Server-Sent Events (SSE)**, eliminating complex network scraping and firewall configuration while delivering sub-second updates to a zero-build vanilla web UI.
 
 ---
 
-## 📐 Architecture
+## 📚 Documentation Index
 
-The dashboard uses a **Push-based model** that operates smoothly behind NATs, firewalls, and VPN tunnels:
+For exhaustive technical guides, please refer to the dedicated documentation suite:
 
-1. **`agent/` (Python client)**: Runs on monitored hosts and POSTs local metrics, drive speeds, and power draw to the dashboard server every 5 seconds.
-2. **`backend/` (FastAPI server)**: Runs on the central dashboard server, sweeps active node pings, stores client states in-memory, and broadcasts updates to open dashboards.
-3. **`frontend/` (Vanilla Web UI)**: Static HTML, CSS, and ES modules served by the backend. Features custom canvas line charts. No compilation or node build pipelines are required.
+| Document | Description |
+| :--- | :--- |
+| **[Architecture & Design](docs/ARCHITECTURE.md)** | Telemetry data flow, SQLite persistence, downsampling strategy, and background worker concurrency. |
+| **[API Reference](docs/API_REFERENCE.md)** | Full specification of all REST endpoints, authentication headers, JSON payloads, and SSE stream protocols. |
+| **[Agent Guide & Telemetry](docs/AGENT_GUIDE.md)** | Multi-platform metric collection, Intel/AMD RAPL, WMI, NVIDIA GPU queries, update detection, and TDP estimation models. |
+| **[Services Monitoring](docs/SERVICES_MONITORING.md)** | Probing self-hosted web applications, `services.json` schema, categories, and backend network isolation. |
+| **[Frontend System & UI](docs/FRONTEND_SYSTEM.md)** | Design tokens, HTML5 Canvas charts & sparklines, Web Audio API sci-fi alarm chime, and hysteresis alerting. |
+| **[Production Deployment](docs/DEPLOYMENT_GUIDE.md)** | Production setup on Linux/Windows, systemd services, Nginx reverse proxy with SSE buffering, and security hardening. |
+| **[Troubleshooting & Diagnostics](docs/TROUBLESHOOTING.md)** | Step-by-step diagnostic guide for connection issues, authentication resets, sensor permissions, and audio policies. |
+
+---
+
+## ✨ Key Features
+
+- **🌐 Push-Based Telemetry**: Client nodes push telemetry outbound every 5 seconds. Seamlessly operates through NATs, firewalls, and VPN tunnels without requiring open inbound ports on monitored hosts.
+- **⚡ Real-Time SSE Streaming**: Live updates stream directly into your browser over an efficient persistent HTTP Server-Sent Events connection.
+- **🎨 Zero-Build Modern UI**: Built with vanilla ES6 JavaScript modules, HTML5 Canvas, and a token-driven CSS architecture. Zero `npm build`, Webpack, or framework bloat required.
+- **🔒 Multi-Layer Security**:
+  - Administrative access secured with **PBKDF2-HMAC-SHA256** password hashing and 14-day bearer session tokens.
+  - First-run setup overlay automatically initializes the master admin account and locks subsequent registration.
+  - Ingestion secured via a unique, cryptographically generated `X-Agent-Key` header.
+- **📊 30-Day SQLite History & Downsampling**: Lab-wide power consumption is logged every minute with automatic 30-day retention pruning. Features fast mathematical integer-bucketing downsampling (`6H`, `24H`, `7D`, `30D`).
+- **🖥️ Deep Hardware Instrumentation**:
+  - **CPU & RAM**: Marketing model retrieval, core count breakdown, and live utilization bars with real-time Canvas sparklines.
+  - **Power Draw (Watts)**: Real-time CPU and GPU wattage tracking (via Linux RAPL / hwmon, Windows Performance Counters, or TDP load interpolation) with estimated monthly running electricity costs.
+  - **Storage & I/O**: Multi-disk partition scanning with individual utilization meters and live read/write throughput speeds ($\text{MB/s}$).
+  - **Network & Bandwidth**: Live download/upload transfer rates.
+  - **NVIDIA GPU Monitoring**: Auto-detects NVIDIA cards with utilization, VRAM usage, temperature, and wattage.
+  - **VPN & Docker**: Live state detection for Tailscale, OpenVPN, and running Docker containers.
+- **🔄 Asynchronous OS Update Detection**: Runs in a non-blocking background thread once every 4 hours to check for pending packages on Linux (Ubuntu/Debian) and Windows without stalling telemetry.
+- **🔔 Alarm Chimes & Hysteresis**:
+  - Synthesizes sci-fi alarm tones using the browser's native **Web Audio API** (zero external audio assets).
+  - Dual-threshold **hysteresis** (e.g. triggers at 85%, clears at 75%) to eliminate notification flapping.
+- **📌 Customization & Device Pinning**: Pin your most critical servers to the top of the grid with zero-overhead `localStorage` persistence.
+
+---
+
+## 📐 System Architecture
 
 ```mermaid
 sequenceDiagram
-    participant Agent as Target Machine Agent
-    participant Backend as Dashboard Server
+    participant Agent as Target Machine (agent.py)
+    participant Backend as Dashboard Server (FastAPI)
     participant Browser as Web Browser Dashboard
 
-    Browser->>Backend: Connects to SSE (GET /api/stream)
-    Backend-->>Browser: Sends current list of nodes (init)
-    
+    Browser->>Backend: Connect to SSE (GET /api/stream?token=...)
+    Backend-->>Browser: Stream initial state (init, services_init)
+
     loop Every 5 seconds
-        Agent->>Agent: Query CPU, RAM, OS, all Disks, GPU, Net Speed, I/O & Power
-        Agent->>Backend: Post metrics (POST /api/report)
-        Backend->>Backend: Update in-memory state
-        Backend-->>Browser: Stream metrics update (metrics)
-        Browser->>Browser: Update DOM / progress bars / badges
+        Agent->>Agent: Query CPU, RAM, Disks, GPU, Speeds, Power
+        Agent->>Backend: Push telemetry (POST /api/report) [Header: X-Agent-Key]
+        Backend->>Backend: Update in-memory state & enrich latency
+        Backend-->>Browser: Stream live update (metrics)
+        Browser->>Browser: Update DOM / Canvas sparklines / Alert checks
+    end
+
+    loop Every 30 seconds
+        Backend->>Backend: Probe self-hosted HTTP services
+        Backend-->>Browser: Stream updated reachability (services)
     end
 ```
 
@@ -61,185 +78,109 @@ sequenceDiagram
 
 ```text
 ├── agent/
-│   ├── agent.py            # Portable metric collection script
-│   ├── homelab-agent.service # Systemd service template for Linux client
-│   └── requirements.txt    # Agent dependencies (psutil)
+│   ├── agent.py                  # Portable metric collection script
+│   ├── homelab-agent.service     # Systemd service unit template for Linux
+│   └── requirements.txt          # Agent dependencies (psutil)
 ├── backend/
-│   ├── main.py             # FastAPI server, ping sweeper & static file host
-│   ├── homelab-dashboard.service # Systemd service template for APU/Server
-│   └── requirements.txt    # Server dependencies (fastapi, uvicorn)
+│   ├── main.py                   # FastAPI server, background workers & static file server
+│   ├── history.db                # SQLite database (auto-created on startup)
+│   ├── services.json             # Monitored self-hosted web applications
+│   ├── homelab-dashboard.service # Systemd service unit template for central server
+│   └── requirements.txt          # Server dependencies (fastapi, uvicorn)
 ├── frontend/
-│   ├── index.html          # Devices page
-│   ├── services.html       # Services page
+│   ├── index.html                # Devices and hardware monitoring view
+│   ├── services.html             # Self-hosted services health view
 │   ├── css/
-│   │   ├── tokens.css      # Design tokens: colour, type, space, motion
-│   │   ├── base.css        # Reset, typography, utilities
-│   │   ├── layout.css      # Shell, topbar, fleet strip, grids
-│   │   └── components.css  # Cards, meters, drawer, toasts, auth
+│   │   ├── tokens.css            # Central design tokens: colours, typography, motion
+│   │   ├── base.css              # Reset, typography, utilities
+│   │   ├── layout.css            # Page layout, topbar, fleet summary, grids
+│   │   └── components.css        # Cards, meters, drawer, toasts, auth modal
 │   └── js/
-│       ├── config.js       # Thresholds, tariff, offline window
-│       ├── format.js       # Value formatting, escaping, tone helpers
-│       ├── api.js          # Token storage & authenticated fetch
-│       ├── auth.js         # Sign-in / first-run registration
-│       ├── shell.js        # Shared topbar wiring
-│       ├── stream.js       # SSE client with backoff
-│       ├── charts.js       # Canvas sparklines & power trend
-│       ├── toast.js        # Alert notifications & alarm chime
-│       ├── devices.js      # Devices page controller
-│       └── services-page.js # Services page controller
-└── .gitignore              # Files ignored in repository
+│       ├── config.js             # Thresholds, electricity tariff, timeouts
+│       ├── format.js             # Value formatting, XSS escaping, tone helpers
+│       ├── api.js                # Token management & authenticated fetch
+│       ├── auth.js               # Registration & sign-in overlay controller
+│       ├── shell.js              # Shared topbar header & link status indicator
+│       ├── stream.js             # Resilient SSE client with exponential backoff
+│       ├── charts.js             # Canvas sparklines & interactive power trend chart
+│       ├── toast.js              # Toast notifications & Web Audio alarm synthesizer
+│       ├── devices.js            # Devices page controller & alert hysteresis
+│       └── services-page.js      # Services page controller & latency calculator
+├── docs/
+│   ├── ARCHITECTURE.md           # Deep architectural specification
+│   ├── API_REFERENCE.md          # REST API & SSE protocol specification
+│   ├── AGENT_GUIDE.md            # Hardware sensors & agent deployment guide
+│   ├── SERVICES_MONITORING.md    # Services probing subsystem documentation
+│   ├── FRONTEND_SYSTEM.md        # Design system & frontend mechanics
+│   ├── DEPLOYMENT_GUIDE.md       # Production deployment, Nginx & systemd guide
+│   └── TROUBLESHOOTING.md        # Comprehensive diagnostic resolutions
+└── README.md                     # Project overview and index
 ```
 
 ---
 
-## 🚀 Setup & Installation
+## 🚀 Quick Start
 
-### 1. Central Server Setup
+### 1. Start the Central Dashboard Server
 
-On your main dashboard server (running Linux/Ubuntu/Debian or Windows):
+On your central Linux or Windows server:
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/yourusername/homelab-dashboard.git
-   cd homelab-dashboard/backend
-   ```
-2. **Set up a virtual environment**:
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   ```
-3. **Run the server**:
-   ```bash
-   uvicorn main:app --host 0.0.0.0 --port 8000 --timeout-graceful-shutdown 1
-   ```
-4. **Access the Web UI & Register**: Open your browser and navigate to `http://<YOUR-SERVER-IP>:8000`.
-   - On the very first load, you will be prompted to **Create Admin Account**. Create your administrator username and password to secure the dashboard.
-   - Once logged in, copy the **Agent Key** displayed in the top header summary bar (you will need this key to configure your client machine agents).
+```bash
+# 1. Navigate to backend directory
+cd backend
 
-#### Running as a systemd Service (Linux)
+# 2. Create and activate a Python virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
 
-To ensure the dashboard server starts automatically at boot, you can use the provided systemd service file:
+# 3. Install dependencies
+pip install -r requirements.txt
 
-1. **Edit the service file**: 
-   Open `backend/homelab-dashboard.service` and update the `User`, `WorkingDirectory`, and `ExecStart` paths to match your installation:
-   ```ini
-   WorkingDirectory=/path/to/homelab-dashboard/backend
-   ExecStart=/path/to/homelab-dashboard/backend/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --timeout-graceful-shutdown 1
-   ```
-2. **Copy to systemd directory**:
-   ```bash
-   sudo cp homelab-dashboard.service /etc/systemd/system/
-   ```
-3. **Enable and start the service**:
-   ```bash
-   sudo systemctl daemon-reload
-   sudo systemctl enable homelab-dashboard.service
-   sudo systemctl start homelab-dashboard.service
-   ```
-4. **Check status**:
-   ```bash
-   sudo systemctl status homelab-dashboard.service
-   ```
+# 4. Start the server
+uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+Open your browser at `http://<SERVER-IP>:8000`. On the first load, create your administrator account. Once logged in, click the **Key** badge in the top bar to copy your generated **Agent Key**.
 
 ---
 
-### 2. Client Agent Setup
+### 2. Deploy Client Agents
 
-Deploy this lightweight agent on every machine you want to monitor:
+On each server, NAS, or workstation you want to monitor:
 
-1. **Copy the `agent/` folder** to the host machine.
-2. **Configure Server URL & Agent Key**:
-   Open `agent.py` in an editor and update the `SERVER_URL` and `AGENT_KEY` variables to match your central server's credentials:
-   ```python
-   SERVER_URL = "http://<YOUR-SERVER-IP>:8000/api/report"
-   AGENT_KEY = "your_copied_agent_key_here"
-   ```
-3. **Install dependencies and run**:
-   - **Linux / NAS**:
-     ```bash
-     python3 -m venv .venv
-     source .venv/bin/activate
-     pip install -r requirements.txt
-     python agent.py
-     ```
-   - **Windows**:
-     ```powershell
-     python -m venv .venv
-     .\.venv\Scripts\pip.exe install -r requirements.txt
-     .\.venv\Scripts\python.exe agent.py
-     ```
+```bash
+# 1. Navigate to agent directory
+cd agent
 
-#### Running as a systemd Service (Linux)
+# 2. Create virtual environment & install dependencies
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
 
-To run the agent in the background as a systemd service on your Linux client machines:
+Edit `agent.py` to set your dashboard server IP and master Agent Key:
+```python
+SERVER_URL = "http://<SERVER-IP>:8000/api/report"
+AGENT_KEY = "<YOUR_COPIED_AGENT_KEY>"
+```
 
-1. **Edit the service file**:
-   Open `agent/homelab-agent.service` and update the `User`, `WorkingDirectory`, and `ExecStart` paths to match your agent directory:
-   ```ini
-   WorkingDirectory=/path/to/homelab-dashboard/agent
-   ExecStart=/path/to/homelab-dashboard/agent/.venv/bin/python agent.py
-   ```
-2. **Copy to systemd directory**:
-   ```bash
-   sudo cp homelab-agent.service /etc/systemd/system/
-   ```
-3. **Enable and start the service**:
-   ```bash
-   sudo systemctl daemon-reload
-   sudo systemctl enable homelab-agent.service
-   sudo systemctl start homelab-agent.service
-   ```
-4. **Check status**:
-   ```bash
-   sudo systemctl status homelab-agent.service
-   ```
-
-#### Running silently in the background on Startup (Windows)
-
-To ensure the agent runs silently in the background on your Windows gaming machine (without opening an annoying terminal window or stealing window focus during gaming/daily tasks):
-
-> [!IMPORTANT]
-> **Do not configure the task to repeat in Task Scheduler!** The agent has a built-in loop that queries metrics every 5 seconds. The task should only run **once** when you log on and remain running in the background.
-
-1. Open **Task Scheduler** from the Start Menu.
-2. Click **Create Basic Task...** and name it `HomeLab Agent`.
-3. Set Trigger to **When I log on**.
-4. Set Action to **Start a Program**.
-5. Set **Program/script** to point to `pythonw.exe` inside your virtual environment (using `pythonw` runs the script silently with no console):
-   ```text
-   C:\path\to\homelab-dashboard\agent\.venv\Scripts\pythonw.exe
-   ```
-6. Set **Add arguments (optional)** to:
-   ```text
-   agent.py
-   ```
-7. Set **Start in (optional)** to your absolute agent directory:
-   ```text
-   C:\path\to\homelab-dashboard\agent
-   ```
-8. Click **Next** and **Finish**.
-
-> [!NOTE]
-> The agent code is built to run child commands (like CPU power queries via PowerShell or GPU queries via `nvidia-smi`) with the `CREATE_NO_WINDOW` flag (`0x08000000`). This ensures these queries run completely silently in the background and will never steal window focus from games or other applications.
+Run the agent:
+```bash
+python agent.py
+```
+Within 5 seconds, the node will appear dynamically on your dashboard grid.
 
 ---
 
-## 🛠️ Customization
+## 🛠️ Configuration & Tunables
 
-- **Icons**: The dashboard auto-maps hostnames to icons in `frontend/js/format.js`. To add a machine type, extend the table in `deviceIcon`:
-  ```javascript
-  const table = [
-      [/gaming|desktop|\bpc\b|rig|workstation/, 'fa-desktop'],
-      [/nas|storage|vault|backup/,              'fa-hard-drive'],
-      // add your own pattern here
-  ];
-  ```
-- **Styling**: Every colour, size, radius and timing is a CSS custom property in the `:root` block of `frontend/css/tokens.css`. Change a token there and it propagates through both pages — no other file hardcodes a colour.
-- **Thresholds & tariff**: Alert trip/recovery points, the meter warning bands, the offline window and the `$/kWh` rate all live in `frontend/js/config.js`.
+- **Alert Thresholds & Electricity Rate**: Edit `frontend/js/config.js` to customize CPU/GPU trip points, recovery points, and local `$/kWh` electricity tariffs.
+- **Monitored Services**: Edit `backend/services.json` to add or remove self-hosted web applications.
+- **Hostname Icons**: Extend the heuristic table in `frontend/js/format.js` (`deviceIcon()`) to assign custom icons based on hostname regex patterns.
+- **Theme & Colors**: Modify the CSS custom properties in `frontend/css/tokens.css` to retheme the entire dashboard.
 
 ---
 
 ## 📝 License
 
-This project is open-sourced under the MIT License. Feel free to fork, modify, and distribute it for your own homelab setups!
+Distributed under the **MIT License**. See LICENSE file for details.
