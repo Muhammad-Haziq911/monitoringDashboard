@@ -48,20 +48,81 @@ if (-not (Test-Path (Join-Path $agentDir 'agent.py'))) {
 }
 
 $python = (Get-Command python -ErrorAction SilentlyContinue).Source
+
+# Windows keeps an app execution alias that makes bare `python` resolve to the
+# Store build even when a python.org install is present. The py launcher
+# reports the real interpreter, so prefer it when the alias is in the way.
+if (-not $python -or $python -like '*\WindowsApps\*') {
+    $viaLauncher = & py -3 -c 'import sys; print(sys.executable)' 2>$null
+    if ($LASTEXITCODE -eq 0 -and $viaLauncher -and $viaLauncher -notlike '*\WindowsApps\*') {
+        Write-Host "==> Using $viaLauncher (ignoring the Store alias on PATH)"
+        $python = $viaLauncher.Trim()
+    }
+}
+
 if (-not $python) { throw 'python not found on PATH. Install Python 3.10+ and re-run.' }
+
+# Microsoft Store Python is installed per-user under WindowsApps. The SYSTEM
+# account cannot load another user's Store package, so a venv built on it
+# produces a task that starts and dies instantly with no error anywhere.
+$isStorePython = $python -like '*\WindowsApps\*'
+if ($isStorePython -and -not $AtLogon) {
+    Write-Error @"
+This machine's Python is the Microsoft Store build:
+    $python
+A Store install is per-user, so the agent cannot run as SYSTEM. Pick one:
+
+  1. Install Python from https://www.python.org/downloads/ ("Install for all
+     users"), delete $venvDir, and re-run this script. The agent then runs at
+     boot regardless of who is logged in. Recommended for an always-on node.
+
+  2. Re-run this script with -AtLogon to run the agent as $($identity.Name)
+     instead. Works with Store Python, but only while that user is logged in.
+"@
+    exit 1
+}
+if ($isStorePython) {
+    Write-Warning "Using Microsoft Store Python; the agent only runs while $($identity.Name) is logged in."
+}
 
 Write-Host "==> Installing agent from $agentDir (reporting to $reportUrl)"
 
 $pythonw = Join-Path $venvDir 'Scripts\pythonw.exe'
-if ((Test-Path $venvDir) -and -not (Test-Path $pythonw)) {
-    Write-Host "==> Removing incompatible virtualenv at $venvDir"
-    Remove-Item -Recurse -Force $venvDir
+if (Test-Path $venvDir) {
+    $stale = $false
+    if (-not (Test-Path $pythonw)) {
+        $stale = $true
+    } else {
+        # A venv records its base interpreter in pyvenv.cfg. If that no longer
+        # matches the python being used now (e.g. after moving off Store
+        # Python), reusing the directory keeps the old broken base.
+        $cfg = Join-Path $venvDir 'pyvenv.cfg'
+        $venvHome = (Get-Content $cfg -ErrorAction SilentlyContinue |
+                     Select-String '^home\s*=' | Select-Object -First 1) -replace '^home\s*=\s*',''
+        if ($venvHome -and (Split-Path $python -Parent) -ne $venvHome.Trim()) { $stale = $true }
+    }
+    if ($stale) {
+        Write-Host "==> Removing stale virtualenv at $venvDir"
+        Remove-Item -Recurse -Force $venvDir
+    }
 }
 
 Write-Host "==> Creating virtualenv at $venvDir"
 & $python -m venv $venvDir
-& (Join-Path $venvDir 'Scripts\pip.exe') install --quiet --upgrade pip
-& (Join-Path $venvDir 'Scripts\pip.exe') install --quiet -r (Join-Path $agentDir 'requirements.txt')
+
+$venvPython = Join-Path $venvDir 'Scripts\python.exe'
+if (-not (Test-Path $venvPython)) { throw "venv creation failed: $venvPython was not created." }
+if (-not (Test-Path $pythonw))    { throw "venv creation failed: $pythonw was not created." }
+
+# Invoked via python -m, so pip can replace itself without a file lock.
+& $venvPython -m pip install --quiet --upgrade pip
+if ($LASTEXITCODE -ne 0) { Write-Warning 'Could not upgrade pip; continuing with the bundled version.' }
+
+& $venvPython -m pip install --quiet -r (Join-Path $agentDir 'requirements.txt')
+if ($LASTEXITCODE -ne 0) { throw 'Failed to install agent dependencies.' }
+
+& $venvPython -c 'import psutil' 2>&1 | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'psutil did not install correctly; the agent cannot run.' }
 
 # The launcher carries the config, since Scheduled Tasks have no equivalent
 # of systemd's EnvironmentFile.
@@ -71,7 +132,7 @@ Write-Host "==> Writing $launcher"
 set HOMELAB_SERVER_URL=$reportUrl
 set HOMELAB_AGENT_KEY=$Key
 set HOMELAB_INTERVAL=$Interval
-start "" "$pythonw" "$(Join-Path $agentDir 'agent.py')"
+"$pythonw" "$(Join-Path $agentDir 'agent.py')"
 "@ | Set-Content -Path $launcher -Encoding ASCII
 
 # The launcher holds the shared agent key: restrict it to admins and SYSTEM.
@@ -97,11 +158,24 @@ Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger `
     -Principal $principal -Settings $settings -Force | Out-Null
 
 Start-ScheduledTask -TaskName $TaskName
-Start-Sleep -Seconds 3
+Start-Sleep -Seconds 8
 
-$state = (Get-ScheduledTask -TaskName $TaskName).State
+# Verify an agent process is actually alive. The task reporting "Ready" only
+# means the launcher exited, which is what a crashed agent looks like too.
+$running = Get-CimInstance Win32_Process -Filter "Name='pythonw.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -like '*agent.py*' }
+
 Write-Host ''
-Write-Host "Scheduled task state: $state"
-Write-Host 'This node should appear on the dashboard within a few seconds.'
+if ($running) {
+    Write-Host "Agent running (pid $($running.ProcessId))."
+    Write-Host 'This node should appear on the dashboard within a few seconds.'
+} else {
+    Write-Warning 'The scheduled task started but no agent process is running.'
+    Write-Host 'Reproduce the failure with output visible:'
+    Write-Host "    cd `"$agentDir`""
+    Write-Host "    `"$venvPython`" -u agent.py"
+    Write-Host '(set HOMELAB_SERVER_URL and HOMELAB_AGENT_KEY in that shell first)'
+}
+Write-Host ''
 Write-Host "To stop it:   Stop-ScheduledTask -TaskName '$TaskName'"
 Write-Host "To remove it: Unregister-ScheduledTask -TaskName '$TaskName'"
