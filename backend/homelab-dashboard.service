@@ -1,3 +1,5 @@
+# Reference template. scripts/install-server.sh generates this file with real
+# paths filled in; prefer that over editing this by hand.
 [Unit]
 Description=HomeLab Dashboard Service
 After=network.target

@@ -1,3 +1,5 @@
+# Reference template. scripts/install-agent.sh generates this file with real
+# paths filled in; prefer that over editing this by hand.
 [Unit]
 Description=HomeLab Dashboard Agent Service
 After=network.target
@@ -8,6 +10,8 @@ Type=simple
 User=root
 # Adjust these paths to point to your actual agent installation directory
 WorkingDirectory=/path/to/homelab-dashboard/agent
+# Supplies HOMELAB_SERVER_URL, HOMELAB_AGENT_KEY and HOMELAB_INTERVAL.
+EnvironmentFile=/etc/homelab-agent.env
 ExecStart=/path/to/homelab-dashboard/agent/.venv/bin/python agent.py
 Restart=always
 RestartSec=5

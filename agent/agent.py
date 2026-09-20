@@ -1,6 +1,7 @@
 import json
 import os
 import platform
+import re
 import socket
 import subprocess
 import time
@@ -8,10 +9,12 @@ import urllib.request
 import urllib.error
 import psutil
 
-# Configuration
-SERVER_URL = "http://192.168.1.106:8000/api/report"  # Adjust to your dashboard server IP in production
-AGENT_KEY = "3e809ca82bd1b490df35696e25314821"  # Put your generated server Agent Key here
-INTERVAL = 5  # Reporting interval in seconds
+# Configuration. The install script writes these into an environment file
+# (/etc/homelab-agent.env on Linux) so this source file stays identical on
+# every node and can be updated with a plain git pull.
+SERVER_URL = os.environ.get("HOMELAB_SERVER_URL", "http://192.168.1.106:8000/api/report")
+AGENT_KEY = os.environ.get("HOMELAB_AGENT_KEY", "")
+INTERVAL = int(os.environ.get("HOMELAB_INTERVAL", "5"))  # Reporting interval in seconds
 
 # Prevent console window popping up/stealing focus when spawning subprocesses on Windows
 creationflags = 0x08000000 if os.name == 'nt' else 0
@@ -534,6 +537,11 @@ def send_metrics(data):
     return False
 
 def main():
+    if not AGENT_KEY:
+        print("HOMELAB_AGENT_KEY is not set. The server will reject every report.")
+        print("Set it in the agent environment file, or re-run the install script.")
+        return
+
     print(f"Starting Enhanced Home Lab Dashboard Agent...")
     print(f"Target Server: {SERVER_URL}")
     print(f"Press Ctrl+C to exit.")

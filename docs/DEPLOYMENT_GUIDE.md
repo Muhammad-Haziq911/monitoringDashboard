@@ -19,6 +19,26 @@ This guide covers complete deployment instructions for running the **HomeLab Das
 
 ## 2. Server Installation (FastAPI Dashboard)
 
+### Scripted install (recommended)
+`scripts/install-server.sh` does everything in this section: it builds the
+virtualenv, generates the systemd unit with the real absolute paths of your
+checkout, starts the service, and prints the agent key the nodes will need.
+
+```bash
+sudo mkdir -p /opt/homelab-dashboard
+sudo chown -R $USER:$USER /opt/homelab-dashboard
+git clone https://github.com/yourusername/homelab-dashboard.git /opt/homelab-dashboard
+sudo /opt/homelab-dashboard/scripts/install-server.sh
+```
+
+Options: `--user <name>` to pick the service account, `--port <port>` to change
+the listen port. Re-running it is safe and picks up code changes after a pull.
+
+Clone the whole repository, not just `backend/`: `main.py` serves the UI from
+`../frontend`, so the two directories must stay siblings.
+
+The manual steps below are the same thing by hand.
+
 ### Step 1: Clone Repository & Create Virtual Environment
 ```bash
 sudo mkdir -p /opt/homelab-dashboard
@@ -140,6 +160,27 @@ dashboard.homelab.local {
 
 ## 4. Agent Installation Across Monitored Nodes
 
+Install an agent on **every** machine you want on the dashboard, including the
+server box itself — the server does not collect its own metrics.
+
+### Scripted install (recommended)
+```bash
+git clone https://github.com/yourusername/homelab-dashboard.git /opt/homelab-agent
+sudo /opt/homelab-agent/scripts/install-agent.sh --server http://<server-ip>:8000 --key <agent-key>
+```
+
+On Windows nodes, from an elevated PowerShell prompt:
+```powershell
+git clone https://github.com/yourusername/homelab-dashboard.git C:\Tools\homelab-agent
+C:\Tools\homelab-agent\scripts\install-agent.ps1 -Server http://<server-ip>:8000 -Key <agent-key>
+```
+
+Both write the configuration outside `agent.py` (`/etc/homelab-agent.env` on
+Linux, a generated `run-agent.cmd` on Windows), so the checkout stays clean and
+`git pull` + re-running the script is enough to update a node.
+
+The manual steps below are the same thing by hand.
+
 ### 4.1 Linux Nodes (Ubuntu / Debian / Arch)
 1. Copy the `agent/` folder to `/opt/homelab-agent`:
    ```bash
@@ -150,10 +191,15 @@ dashboard.homelab.local {
    source .venv/bin/activate
    pip install -r requirements.txt
    ```
-2. Edit `/opt/homelab-agent/agent.py`:
-   ```python
-   SERVER_URL = "https://dashboard.homelab.local/api/report"
-   AGENT_KEY = "<YOUR_SERVER_AGENT_KEY>"
+2. Write the config to `/etc/homelab-agent.env` (the agent reads it from the
+   environment; do not edit `agent.py`):
+   ```bash
+   sudo tee /etc/homelab-agent.env >/dev/null <<'ENV'
+   HOMELAB_SERVER_URL=https://dashboard.homelab.local/api/report
+   HOMELAB_AGENT_KEY=<YOUR_SERVER_AGENT_KEY>
+   HOMELAB_INTERVAL=5
+   ENV
+   sudo chmod 600 /etc/homelab-agent.env
    ```
 3. Set up the systemd unit `/etc/systemd/system/homelab-agent.service`:
    ```ini
@@ -165,6 +211,7 @@ dashboard.homelab.local {
    Type=simple
    User=root
    WorkingDirectory=/opt/homelab-agent
+   EnvironmentFile=/etc/homelab-agent.env
    ExecStart=/opt/homelab-agent/.venv/bin/python agent.py
    Restart=always
    RestartSec=5
@@ -189,7 +236,9 @@ dashboard.homelab.local {
    python -m venv .venv
    .\.venv\Scripts\pip.exe install -r requirements.txt
    ```
-4. Update `SERVER_URL` and `AGENT_KEY` in `agent.py`.
+4. Set `HOMELAB_SERVER_URL` and `HOMELAB_AGENT_KEY` in the environment the task
+   runs under (the PowerShell installer generates a `run-agent.cmd` that does
+   this). Do not edit `agent.py`.
 5. Add to **Windows Task Scheduler**:
    - Action: `Start a Program`
    - Program/script: `C:\Tools\homelab-agent\.venv\Scripts\pythonw.exe` (executes silently without console).
