@@ -47,20 +47,35 @@ if (-not (Test-Path (Join-Path $agentDir 'agent.py'))) {
     throw "Could not find agent\agent.py under $repoRoot."
 }
 
-$python = (Get-Command python -ErrorAction SilentlyContinue).Source
-
 # Windows keeps an app execution alias that makes bare `python` resolve to the
-# Store build even when a python.org install is present. The py launcher
-# reports the real interpreter, so prefer it when the alias is in the way.
-if (-not $python -or $python -like '*\WindowsApps\*') {
-    $viaLauncher = & py -3 -c 'import sys; print(sys.executable)' 2>$null
-    if ($LASTEXITCODE -eq 0 -and $viaLauncher -and $viaLauncher -notlike '*\WindowsApps\*') {
-        Write-Host "==> Using $viaLauncher (ignoring the Store alias on PATH)"
-        $python = $viaLauncher.Trim()
+# per-user Store build even when an all-users python.org install exists, and
+# the py launcher often prefers the Store registration too. So when PATH points
+# at a Store build, look for a conventional install on disk before giving up.
+function Find-SystemPython {
+    $candidates = @()
+
+    $onPath = (Get-Command python -ErrorAction SilentlyContinue).Source
+    if ($onPath -and $onPath -notlike '*\WindowsApps\*') { $candidates += $onPath }
+
+    # All-users python.org installs, newest version first.
+    $candidates += Get-ChildItem 'C:\Program Files\Python3*' -Directory -ErrorAction SilentlyContinue |
+        Sort-Object Name -Descending |
+        ForEach-Object { Join-Path $_.FullName 'python.exe' }
+
+    if (Get-Command py -ErrorAction SilentlyContinue) {
+        $viaLauncher = & py -3 -c 'import sys; print(sys.executable)' 2>$null
+        if ($LASTEXITCODE -eq 0 -and $viaLauncher) { $candidates += $viaLauncher.Trim() }
     }
+
+    foreach ($c in $candidates) {
+        if ($c -and (Test-Path $c) -and $c -notlike '*\WindowsApps\*') { return $c }
+    }
+    return $onPath  # may be a Store build or null; caller decides
 }
 
-if (-not $python) { throw 'python not found on PATH. Install Python 3.10+ and re-run.' }
+$python = Find-SystemPython
+if (-not $python) { throw 'python not found. Install Python 3.10+ and re-run.' }
+Write-Host "==> Using interpreter: $python"
 
 # Microsoft Store Python is installed per-user under WindowsApps. The SYSTEM
 # account cannot load another user's Store package, so a venv built on it
