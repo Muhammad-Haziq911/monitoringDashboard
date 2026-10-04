@@ -12,7 +12,7 @@ User=root
 WorkingDirectory=/path/to/homelab-dashboard/agent
 # Supplies HOMELAB_SERVER_URL, HOMELAB_AGENT_KEY and HOMELAB_INTERVAL.
 EnvironmentFile=/etc/homelab-agent.env
-ExecStart=/path/to/homelab-dashboard/agent/.venv/bin/python agent.py
+ExecStart=/path/to/homelab-dashboard/agent/.venv/bin/python -u agent.py
 Restart=always
 RestartSec=5
 

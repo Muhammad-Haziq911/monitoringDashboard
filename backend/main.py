@@ -178,25 +178,38 @@ def get_sanitized_services() -> List[dict]:
         for s in services_list
     ]
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """A redirect already proves the service is up. Following it only adds a
+    second request, often for a full app shell, to the measured latency."""
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+_service_opener = urllib.request.build_opener(_NoRedirect)
+
+# Firing every check at once piled them onto the same host and queued them
+# behind the default thread pool, which reported 5 ms services as ~1 s.
+_service_check_slots = asyncio.Semaphore(4)
+
 async def ping_service(service: dict):
     """Check if an HTTP service is online internally (APU backend side) and record response time."""
     url = service.get("url")
     if not url:
         return
-    
-    start_time = time.time()
-    try:
-        def run():
-            req = urllib.request.Request(url, headers={"User-Agent": "HomeLab-Dashboard-Monitor"})
-            with urllib.request.urlopen(req, timeout=2.0) as response:
+
+    def run() -> float:
+        # Timed inside the worker so waiting for a free thread is not counted.
+        start = time.time()
+        req = urllib.request.Request(url, headers={"User-Agent": "HomeLab-Dashboard-Monitor"})
+        try:
+            with _service_opener.open(req, timeout=2.0) as response:
                 response.read(1)
-                return True
-        await asyncio.to_thread(run)
-        latency = (time.time() - start_time) * 1000.0
-        service["online"] = True
-        service["latency"] = round(latency, 1)
-    except urllib.error.HTTPError as e:
-        latency = (time.time() - start_time) * 1000.0
+        except urllib.error.HTTPError:
+            pass  # Any HTTP status, including 3xx and 401, means it answered.
+        return (time.time() - start) * 1000.0
+
+    try:
+        async with _service_check_slots:
+            latency = await asyncio.to_thread(run)
         service["online"] = True
         service["latency"] = round(latency, 1)
     except Exception:
@@ -214,6 +227,9 @@ def get_device_status(device_info: dict, current_time: float) -> dict:
     info = device_info.copy()
     last_seen = info.get("last_seen", 0)
     info["online"] = (current_time - last_seen) < OFFLINE_THRESHOLD
+    # Seconds since the last report, by this server's clock. Browsers anchor it
+    # to their own clock rather than comparing last_seen across two clocks.
+    info["age"] = max(0.0, current_time - last_seen)
     return info
 
 async def broadcast(event_type: str, data: dict):
@@ -256,22 +272,26 @@ async def ping_background_loop():
     """Background task to periodically ping registered nodes and update latency."""
     while True:
         try:
-            current_time = time.time()
-            hostnames = list(devices.keys())
-            for hostname in hostnames:
+            for hostname in list(devices.keys()):
                 device = devices.get(hostname)
-                if device:
-                    # Check if device is active before pinging
-                    is_active = (current_time - device.get("last_seen", 0)) < OFFLINE_THRESHOLD
-                    if is_active and device.get("ip"):
-                        latency = await ping_host(device["ip"])
-                        device["latency"] = latency
-                    else:
-                        device["latency"] = None
-                    
-                    # Broadcast latency update
-                    enriched = get_device_status(device, current_time)
-                    await broadcast("metrics", enriched)
+                if not device:
+                    continue
+                # Check if device is active before pinging
+                is_active = (time.time() - device.get("last_seen", 0)) < OFFLINE_THRESHOLD
+                latency = None
+                if is_active and device.get("ip"):
+                    latency = await ping_host(device["ip"])
+
+                # A report may have replaced this device's dict while the ping
+                # was awaited. Updating the stale copy lost the latency and
+                # broadcast an older snapshot with last_seen moving backwards.
+                current = devices.get(hostname)
+                if current is None:
+                    continue
+                current["latency"] = latency
+
+                # Broadcast latency update
+                await broadcast("metrics", get_device_status(current, time.time()))
         except Exception as e:
             print(f"Error in ping loop: {e}")
         # Sleep for 10 seconds before next ping sweep
