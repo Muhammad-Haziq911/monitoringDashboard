@@ -39,7 +39,10 @@ function savePinned() {
     localStorage.setItem('pinnedDevices', JSON.stringify([...pinned]));
 }
 
-const isOnline = (device) => (Date.now() / 1000 - device.last_seen) < OFFLINE_AFTER;
+// last_seen is stamped by the server's clock, so comparing it with this
+// browser's clock shifted the offline window by however far the two disagreed.
+// ingest() re-anchors the server-reported age to the local clock instead.
+const isOnline = (device) => (Date.now() / 1000 - device.seen_at) < OFFLINE_AFTER;
 const nodePower = (d) => (d.cpu_power || 0) + (d.gpu?.power || 0);
 
 /* --- Node card ---------------------------------------------------------- */
@@ -531,8 +534,17 @@ function appendLivePower() {
 
 function ingest(device) {
     const previous = nodes.get(device.hostname);
+    // Older servers send no age; fall back to the cross-clock comparison.
+    device.seen_at = device.age === undefined
+        ? device.last_seen
+        : Date.now() / 1000 - device.age;
+
+    // The server re-broadcasts each node every 10 s with its ping latency.
+    // Only a genuinely new report should add a point to the sparkline.
     const history = previous?.cpuHistory || [];
-    device.cpuHistory = [...history, device.cpu_usage ?? 0].slice(-HISTORY_POINTS);
+    device.cpuHistory = device.last_seen === previous?.last_seen
+        ? history
+        : [...history, device.cpu_usage ?? 0].slice(-HISTORY_POINTS);
     device.alerts = previous?.alerts;
     nodes.set(device.hostname, device);
 }
