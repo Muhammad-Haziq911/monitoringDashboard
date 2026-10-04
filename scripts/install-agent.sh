@@ -83,16 +83,33 @@ if ! command -v python3 >/dev/null 2>&1; then
     exit 1
 fi
 
-# A Windows .venv is committed to this repo; it cannot run here.
-if [[ -d "$VENV_DIR" && ! -x "$VENV_DIR/bin/python" ]]; then
-    echo "==> Removing non-Linux virtualenv at $VENV_DIR"
-    rm -rf "$VENV_DIR"
+# Rebuild the venv when it cannot run, or was built for a different Python
+# than the system has now. After a distro upgrade (say 3.11 -> 3.12),
+# bin/python follows the symlink to the new interpreter while psutil is still
+# in lib/python3.11/site-packages, so a working agent suddenly dies with
+# "No module named 'psutil'". A venv copied from another OS fails the same way.
+SYS_PY_VER="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+if [[ -d "$VENV_DIR" ]]; then
+    BUILT_VER="$(sed -nE 's/^version(_info)? *= *([0-9]+\.[0-9]+).*/\2/p' "$VENV_DIR/pyvenv.cfg" 2>/dev/null | head -n1)"
+    if ! "$VENV_DIR/bin/python" -c '' 2>/dev/null || [[ "$BUILT_VER" != "$SYS_PY_VER" ]]; then
+        echo "==> Rebuilding virtualenv (built for Python ${BUILT_VER:-unknown}, system has $SYS_PY_VER)"
+        rm -rf "$VENV_DIR"
+    fi
 fi
 
 echo "==> Creating virtualenv at $VENV_DIR"
-python3 -m venv "$VENV_DIR"
-"$VENV_DIR/bin/pip" install --quiet --upgrade pip
-"$VENV_DIR/bin/pip" install --quiet -r "$AGENT_DIR/requirements.txt"
+if ! python3 -m venv "$VENV_DIR"; then
+    echo "Could not create a virtualenv. On Debian/Ubuntu, install the venv module:" >&2
+    echo "  sudo apt install python3-venv" >&2
+    exit 1
+fi
+"$VENV_DIR/bin/python" -m pip install --quiet --upgrade pip
+"$VENV_DIR/bin/python" -m pip install --quiet -r "$AGENT_DIR/requirements.txt"
+
+if ! "$VENV_DIR/bin/python" -c 'import psutil' 2>/dev/null; then
+    echo "psutil is not importable from $VENV_DIR; the agent cannot run." >&2
+    exit 1
+fi
 
 echo "==> Writing $ENV_FILE"
 cat > "$ENV_FILE" <<ENV
@@ -115,7 +132,9 @@ Type=simple
 User=$RUN_USER
 WorkingDirectory=$AGENT_DIR
 EnvironmentFile=$ENV_FILE
-ExecStart=$VENV_DIR/bin/python agent.py
+# -u: without a TTY Python buffers stdout, so log lines reached the
+# journal minutes late in 8 KB bursts.
+ExecStart=$VENV_DIR/bin/python -u agent.py
 Restart=always
 RestartSec=5
 

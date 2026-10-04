@@ -62,10 +62,31 @@ if ! command -v python3 >/dev/null 2>&1; then
     exit 1
 fi
 
+# Rebuild the venv if it cannot run or was built for a different Python than
+# the system has now; a distro upgrade otherwise leaves fastapi in the old
+# version's site-packages and the service dies with ModuleNotFoundError.
+SYS_PY_VER="$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])')"
+if [[ -d "$VENV_DIR" ]]; then
+    BUILT_VER="$(sed -nE 's/^version(_info)? *= *([0-9]+\.[0-9]+).*/\2/p' "$VENV_DIR/pyvenv.cfg" 2>/dev/null | head -n1)"
+    if ! "$VENV_DIR/bin/python" -c '' 2>/dev/null || [[ "$BUILT_VER" != "$SYS_PY_VER" ]]; then
+        echo "==> Rebuilding virtualenv (built for Python ${BUILT_VER:-unknown}, system has $SYS_PY_VER)"
+        rm -rf "$VENV_DIR"
+    fi
+fi
+
 echo "==> Creating virtualenv at $VENV_DIR"
-python3 -m venv "$VENV_DIR"
-"$VENV_DIR/bin/pip" install --quiet --upgrade pip
-"$VENV_DIR/bin/pip" install --quiet -r "$BACKEND_DIR/requirements.txt"
+if ! python3 -m venv "$VENV_DIR"; then
+    echo "Could not create a virtualenv. On Debian/Ubuntu, install the venv module:" >&2
+    echo "  sudo apt install python3-venv" >&2
+    exit 1
+fi
+"$VENV_DIR/bin/python" -m pip install --quiet --upgrade pip
+"$VENV_DIR/bin/python" -m pip install --quiet -r "$BACKEND_DIR/requirements.txt"
+
+if ! "$VENV_DIR/bin/python" -c 'import fastapi, uvicorn' 2>/dev/null; then
+    echo "fastapi/uvicorn are not importable from $VENV_DIR; the server cannot run." >&2
+    exit 1
+fi
 
 # history.db is created here on first start and holds password hashes,
 # sessions and the agent key, so the service user must own the directory.
